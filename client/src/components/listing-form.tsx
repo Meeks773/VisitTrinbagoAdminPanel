@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -11,6 +12,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { TagInput } from "@/components/tag-input";
 import { Card } from "@/components/ui/card";
+import { ImageUpload, GalleryUpload } from "@/components/image-upload";
 import { Save, Loader2 } from "lucide-react";
 
 interface ListingFormProps {
@@ -67,6 +69,9 @@ export function ListingForm({ category, listing, onSubmit, isPending }: ListingF
   const fields = categoryFields[category];
   const schema = buildFormSchema(fields);
 
+  const [featuredImage, setFeaturedImage] = useState<string | null>(listing?.featuredImage || null);
+  const [galleryImages, setGalleryImages] = useState<string[]>(listing?.galleryImages || []);
+
   const form = useForm({
     resolver: zodResolver(schema),
     defaultValues: getDefaultValues(fields, listing),
@@ -84,7 +89,12 @@ export function ListingForm({ category, listing, onSubmit, isPending }: ListingF
       }
     }
 
-    onSubmit({ ...common, metadata });
+    onSubmit({
+      ...common,
+      metadata,
+      featuredImage: featuredImage || null,
+      galleryImages: galleryImages.length > 0 ? galleryImages : [],
+    });
   };
 
   const commonFields = fields.filter((f) => !f.isMetadata);
@@ -93,6 +103,22 @@ export function ListingForm({ category, listing, onSubmit, isPending }: ListingF
   return (
     <Form {...form}>
       <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-6">
+        <Card className="p-4 space-y-4">
+          <h3 className="text-sm font-medium text-muted-foreground uppercase tracking-wider">Images</h3>
+          <ImageUpload
+            value={featuredImage}
+            onChange={setFeaturedImage}
+            label="Featured Image"
+            data-testid="upload-featured-image"
+          />
+          <GalleryUpload
+            value={galleryImages}
+            onChange={setGalleryImages}
+            label="Gallery Images"
+            data-testid="upload-gallery-images"
+          />
+        </Card>
+
         <Card className="p-4 space-y-4">
           <h3 className="text-sm font-medium text-muted-foreground uppercase tracking-wider">Basic Information</h3>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
