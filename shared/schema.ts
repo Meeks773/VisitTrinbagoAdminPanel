@@ -12,6 +12,9 @@ export const CATEGORIES = [
   "transport",
   "business",
   "tours",
+  "eat_drink",
+  "attractions",
+  "shopping",
 ] as const;
 
 export type Category = (typeof CATEGORIES)[number];
@@ -25,6 +28,9 @@ export const CATEGORY_LABELS: Record<Category, string> = {
   transport: "Getting Around",
   business: "Business",
   tours: "Tours",
+  eat_drink: "Eat & Drink",
+  attractions: "Attractions",
+  shopping: "Shopping",
 };
 
 export const listings = pgTable("listings", {

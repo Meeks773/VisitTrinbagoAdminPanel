@@ -11,7 +11,7 @@ Admin web application for managing tourism content displayed in the VisitTrinbag
 - **State**: TanStack React Query
 
 ## Categories
-nightlife, beaches, wellness, festivals, stay, transport, business, tours
+nightlife, beaches, wellness, festivals, stay, transport, business, tours, eat_drink, attractions, shopping
 
 ## Data Model
 Single `listings` table with common fields (name, interest, subInterest, description, location, lat/lng, website, phone, email, rewardPoints) plus a JSONB `metadata` column for category-specific fields.

@@ -8,6 +8,9 @@ import {
   Car,
   Briefcase,
   Compass,
+  UtensilsCrossed,
+  Landmark,
+  ShoppingBag,
 } from "lucide-react";
 
 export interface FieldConfig {
@@ -28,6 +31,9 @@ export const categoryIcons: Record<Category, any> = {
   transport: Car,
   business: Briefcase,
   tours: Compass,
+  eat_drink: UtensilsCrossed,
+  attractions: Landmark,
+  shopping: ShoppingBag,
 };
 
 const commonFields: FieldConfig[] = [
@@ -54,6 +60,9 @@ export const categoryFields: Record<Category, FieldConfig[]> = {
     { key: "currency", label: "Currency", type: "select", options: ["TTD", "USD", "EUR", "GBP"], isMetadata: true },
     { key: "coverChargeAmount", label: "Cover Charge Amount", type: "number", placeholder: "0", isMetadata: true },
     { key: "dressCode", label: "Dress Code", type: "text", placeholder: "e.g. Smart Casual", isMetadata: true },
+    { key: "ageRestriction", label: "Age Restriction", type: "text", placeholder: "e.g. 18+", isMetadata: true },
+    { key: "bookingUrl", label: "Booking URL", type: "text", placeholder: "https://example.tt/reservations", isMetadata: true },
+    { key: "amenities", label: "Amenities", type: "tags", placeholder: "Add amenity", isMetadata: true },
     { key: "specialNights", label: "Special Nights/Offers", type: "tags", placeholder: "Add special night or offer", isMetadata: true },
   ],
   beaches: [
@@ -108,5 +117,30 @@ export const categoryFields: Record<Category, FieldConfig[]> = {
     { key: "dressCode", label: "Dress Code", type: "text", placeholder: "e.g. Comfortable shoes", isMetadata: true },
     { key: "bookingWebsite", label: "Booking Website", type: "text", placeholder: "https://example.tt/book", isMetadata: true },
     { key: "contactName", label: "Contact Name", type: "text", placeholder: "Full name", isMetadata: true },
+  ],
+  eat_drink: [
+    ...commonFields,
+    { key: "typeOfCuisine", label: "Type of Cuisine", type: "text", placeholder: "e.g. Caribbean / Seafood", isMetadata: true },
+    { key: "priceRange", label: "Price Range", type: "select", options: ["$ (budget)", "$$ (mid-range)", "$$$ (upscale)", "$$$$ (fine dining)"], isMetadata: true },
+    { key: "openingHours", label: "Opening Hours", type: "text", placeholder: "e.g. Mon-Sun 11:00 AM - 10:00 PM", isMetadata: true },
+    { key: "bookingUrl", label: "Booking URL", type: "text", placeholder: "https://example.tt/reserve", isMetadata: true },
+    { key: "amenities", label: "Amenities", type: "tags", placeholder: "Add amenity", isMetadata: true },
+  ],
+  attractions: [
+    ...commonFields,
+    { key: "freeEntry", label: "Free Entry", type: "checkbox", isMetadata: true },
+    { key: "currency", label: "Currency", type: "select", options: ["TTD", "USD", "EUR", "GBP"], isMetadata: true },
+    { key: "entryFeeAmount", label: "Entry Fee Amount", type: "number", placeholder: "0", isMetadata: true },
+    { key: "openingHours", label: "Opening Hours", type: "text", placeholder: "e.g. Tue-Sun 8:00 AM - 4:30 PM", isMetadata: true },
+    { key: "openingHoursNotes", label: "Opening Hours Notes", type: "textarea", placeholder: "e.g. Last entry at 3:30 PM", isMetadata: true },
+    { key: "bookingUrl", label: "Booking URL", type: "text", placeholder: "https://example.tt/book", isMetadata: true },
+    { key: "amenities", label: "Amenities", type: "tags", placeholder: "Add amenity", isMetadata: true },
+  ],
+  shopping: [
+    ...commonFields,
+    { key: "typeOfFacility", label: "Type of Facility", type: "select", options: ["Market", "Craft", "Mall", "Boutique", "Souvenir Shop", "Duty-Free"], isMetadata: true },
+    { key: "openingHours", label: "Opening Hours", type: "text", placeholder: "e.g. Mon-Sat 6:00 AM - 6:00 PM", isMetadata: true },
+    { key: "bookingUrl", label: "Booking URL", type: "text", placeholder: "https://example.tt/tours", isMetadata: true },
+    { key: "amenities", label: "Amenities", type: "tags", placeholder: "Add amenity", isMetadata: true },
   ],
 };
