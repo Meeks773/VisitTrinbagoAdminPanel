@@ -14,7 +14,15 @@ Admin web application for managing tourism content displayed in the VisitTrinbag
 nightlife, beaches, wellness, festivals, stay, transport, business, tours, eat_drink, attractions, shopping
 
 ## Data Model
-Single `listings` table with common fields (name, interest, subInterest, description, location, lat/lng, website, phone, email, rewardPoints) plus a JSONB `metadata` column for category-specific fields.
+Single `listings` table with common fields (name, interest, subInterest, description, featuredImage, galleryImages, location, lat/lng, website, phone, email, rewardPoints) plus a JSONB `metadata` column for category-specific fields.
+
+## Image Uploads
+- Uses Replit Object Storage (GCS-backed) for image storage
+- Presigned URL upload flow: POST /api/uploads/request-url → PUT to presigned URL
+- Images served via GET /objects/* route
+- Featured image (single) and gallery images (multiple) supported per listing
+- Object storage integration files in server/replit_integrations/object_storage/
+- Upload components in client/src/components/image-upload.tsx
 
 ## API Endpoints
 - `GET /api/listings?category=xxx` - Admin listing retrieval
