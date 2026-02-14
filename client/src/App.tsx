@@ -9,6 +9,7 @@ import { ThemeProvider } from "@/components/theme-provider";
 import { ThemeToggle } from "@/components/theme-toggle";
 import Dashboard from "@/pages/dashboard";
 import CategoryPage from "@/pages/category-page";
+import ListingFormPage from "@/pages/listing-form-page";
 import NotFound from "@/pages/not-found";
 
 function Router() {
@@ -16,6 +17,8 @@ function Router() {
     <Switch>
       <Route path="/" component={Dashboard} />
       <Route path="/category/:category" component={CategoryPage} />
+      <Route path="/category/:category/new" component={ListingFormPage} />
+      <Route path="/category/:category/edit/:id" component={ListingFormPage} />
       <Route component={NotFound} />
     </Switch>
   );

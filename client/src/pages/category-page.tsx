@@ -1,20 +1,12 @@
 import { useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { useRoute } from "wouter";
+import { useRoute, useLocation } from "wouter";
 import { type Category, type Listing, CATEGORY_LABELS, CATEGORIES } from "@shared/schema";
 import { categoryIcons } from "@/lib/category-config";
-import { ListingForm } from "@/components/listing-form";
 import { ListingCard } from "@/components/listing-card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
-} from "@/components/ui/dialog";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -28,13 +20,11 @@ import {
 import { Plus, Search } from "lucide-react";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
-import { ScrollArea } from "@/components/ui/scroll-area";
 
 export default function CategoryPage() {
   const [, params] = useRoute("/category/:category");
+  const [, navigate] = useLocation();
   const category = params?.category as Category;
-  const [showForm, setShowForm] = useState(false);
-  const [editListing, setEditListing] = useState<Listing | null>(null);
   const [deleteListing, setDeleteListing] = useState<Listing | null>(null);
   const [search, setSearch] = useState("");
   const { toast } = useToast();
@@ -48,51 +38,17 @@ export default function CategoryPage() {
     enabled: isValidCategory,
   });
 
-  const invalidateListings = () => {
-    queryClient.invalidateQueries({
-      predicate: (query) => {
-        const key = query.queryKey[0];
-        return typeof key === "string" && key.startsWith("/api/listings");
-      },
-    });
-  };
-
-  const createMutation = useMutation({
-    mutationFn: async (data: any) => {
-      const res = await apiRequest("POST", "/api/listings", data);
-      return res.json();
-    },
-    onSuccess: () => {
-      invalidateListings();
-      setShowForm(false);
-      toast({ title: "Listing created successfully" });
-    },
-    onError: (err: Error) => {
-      toast({ title: "Error", description: err.message, variant: "destructive" });
-    },
-  });
-
-  const updateMutation = useMutation({
-    mutationFn: async ({ id, data }: { id: number; data: any }) => {
-      const res = await apiRequest("PATCH", `/api/listings/${id}`, data);
-      return res.json();
-    },
-    onSuccess: () => {
-      invalidateListings();
-      setEditListing(null);
-      toast({ title: "Listing updated successfully" });
-    },
-    onError: (err: Error) => {
-      toast({ title: "Error", description: err.message, variant: "destructive" });
-    },
-  });
-
   const deleteMutation = useMutation({
     mutationFn: async (id: number) => {
       await apiRequest("DELETE", `/api/listings/${id}`);
     },
     onSuccess: () => {
-      invalidateListings();
+      queryClient.invalidateQueries({
+        predicate: (query) => {
+          const key = query.queryKey[0];
+          return typeof key === "string" && key.startsWith("/api/listings");
+        },
+      });
       setDeleteListing(null);
       toast({ title: "Listing deleted successfully" });
     },
@@ -133,7 +89,7 @@ export default function CategoryPage() {
             </p>
           </div>
         </div>
-        <Button onClick={() => setShowForm(true)} data-testid="button-add-listing" className="font-bold uppercase tracking-wide">
+        <Button onClick={() => navigate(`/category/${category}/new`)} data-testid="button-add-listing" className="font-bold uppercase tracking-wide">
           <Plus className="h-4 w-4 mr-2" />
           Add {label}
         </Button>
@@ -162,7 +118,7 @@ export default function CategoryPage() {
             <ListingCard
               key={listing.id}
               listing={listing}
-              onEdit={() => setEditListing(listing)}
+              onEdit={() => navigate(`/category/${category}/edit/${listing.id}`)}
               onDelete={() => setDeleteListing(listing)}
             />
           ))}
@@ -174,48 +130,12 @@ export default function CategoryPage() {
           <p className="text-sm text-muted-foreground/70 mt-1 font-medium">
             Add your first {label.toLowerCase()} listing to get started.
           </p>
-          <Button className="mt-6 font-bold uppercase tracking-wide" onClick={() => setShowForm(true)} data-testid="button-add-first">
+          <Button className="mt-6 font-bold uppercase tracking-wide" onClick={() => navigate(`/category/${category}/new`)} data-testid="button-add-first">
             <Plus className="h-4 w-4 mr-2" />
             Add {label}
           </Button>
         </div>
       )}
-
-      <Dialog open={showForm} onOpenChange={setShowForm}>
-        <DialogContent className="max-w-2xl max-h-[90vh] p-0">
-          <DialogHeader className="p-6 pb-0">
-            <DialogTitle className="font-black uppercase tracking-wide">Add New {label}</DialogTitle>
-            <DialogDescription>Fill in the details below to create a new {label.toLowerCase()} listing.</DialogDescription>
-          </DialogHeader>
-          <ScrollArea className="max-h-[70vh] p-6 pt-4">
-            <ListingForm
-              category={category}
-              onSubmit={(data) => createMutation.mutate(data)}
-              isPending={createMutation.isPending}
-            />
-          </ScrollArea>
-        </DialogContent>
-      </Dialog>
-
-      <Dialog open={!!editListing} onOpenChange={() => setEditListing(null)}>
-        <DialogContent className="max-w-2xl max-h-[90vh] p-0">
-          <DialogHeader className="p-6 pb-0">
-            <DialogTitle className="font-black uppercase tracking-wide">Edit {editListing?.name}</DialogTitle>
-            <DialogDescription>Update the listing details below.</DialogDescription>
-          </DialogHeader>
-          <ScrollArea className="max-h-[70vh] p-6 pt-4">
-            {editListing && (
-              <ListingForm
-                key={editListing.id}
-                category={category}
-                listing={editListing}
-                onSubmit={(data) => updateMutation.mutate({ id: editListing.id, data })}
-                isPending={updateMutation.isPending}
-              />
-            )}
-          </ScrollArea>
-        </DialogContent>
-      </Dialog>
 
       <AlertDialog open={!!deleteListing} onOpenChange={() => setDeleteListing(null)}>
         <AlertDialogContent>
