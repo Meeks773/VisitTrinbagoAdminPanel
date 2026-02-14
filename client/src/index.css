@@ -43,10 +43,10 @@
   --chart-3: 0 60% 65%;
   --chart-4: 0 0% 45%;
   --chart-5: 0 40% 40%;
-  --font-sans: 'Poppins', sans-serif;
-  --font-serif: 'Poppins', sans-serif;
-  --font-mono: Menlo, monospace;
-  --radius: 0.5rem;
+  --font-sans: 'Montserrat', sans-serif;
+  --font-serif: 'Montserrat', sans-serif;
+  --font-mono: 'JetBrains Mono', monospace;
+  --radius: 0.375rem;
   --shadow-2xs: 0px 1px 2px 0px rgba(0,0,0,0.04);
   --shadow-xs: 0px 1px 2px 0px rgba(0,0,0,0.05);
   --shadow-sm: 0px 1px 3px 0px rgba(0,0,0,0.06), 0px 1px 2px -1px rgba(0,0,0,0.04);

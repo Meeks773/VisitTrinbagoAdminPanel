@@ -13,36 +13,36 @@ import {
 } from "@/components/ui/sidebar";
 import { CATEGORIES, CATEGORY_LABELS, type Category } from "@shared/schema";
 import { categoryIcons } from "@/lib/category-config";
-import { LayoutDashboard, Globe } from "lucide-react";
+import { LayoutDashboard } from "lucide-react";
 
 export function AppSidebar() {
   const [location] = useLocation();
 
   return (
     <Sidebar>
-      <SidebarHeader className="p-4">
+      <SidebarHeader className="p-5 pb-6 border-b border-sidebar-border">
         <Link href="/">
-          <div className="flex items-center gap-2 cursor-pointer" data-testid="link-dashboard">
-            <div className="flex items-center justify-center w-8 h-8 rounded-md bg-primary">
-              <Globe className="h-4 w-4 text-primary-foreground" />
+          <div className="flex items-center gap-3 cursor-pointer" data-testid="link-dashboard">
+            <div className="flex items-center justify-center w-10 h-10 rounded-md bg-primary">
+              <span className="text-primary-foreground font-black text-lg">V</span>
             </div>
             <div>
-              <h2 className="text-sm font-semibold tracking-tight">VisitTrinbago</h2>
-              <p className="text-xs text-muted-foreground">Content Manager</p>
+              <h2 className="text-base font-extrabold tracking-tight uppercase">VisitTrinbago</h2>
+              <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-sidebar-accent-foreground/60">Content Manager</p>
             </div>
           </div>
         </Link>
       </SidebarHeader>
       <SidebarContent>
         <SidebarGroup>
-          <SidebarGroupLabel>Overview</SidebarGroupLabel>
+          <SidebarGroupLabel className="text-[10px] font-bold uppercase tracking-[0.15em]">Overview</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
               <SidebarMenuItem>
                 <SidebarMenuButton asChild isActive={location === "/"}>
                   <Link href="/" data-testid="link-overview">
                     <LayoutDashboard className="h-4 w-4" />
-                    <span>Dashboard</span>
+                    <span className="font-semibold text-sm">Dashboard</span>
                   </Link>
                 </SidebarMenuButton>
               </SidebarMenuItem>
@@ -50,7 +50,7 @@ export function AppSidebar() {
           </SidebarGroupContent>
         </SidebarGroup>
         <SidebarGroup>
-          <SidebarGroupLabel>Categories</SidebarGroupLabel>
+          <SidebarGroupLabel className="text-[10px] font-bold uppercase tracking-[0.15em]">Categories</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
               {CATEGORIES.map((cat) => {
@@ -61,7 +61,7 @@ export function AppSidebar() {
                     <SidebarMenuButton asChild isActive={isActive}>
                       <Link href={`/category/${cat}`} data-testid={`link-category-${cat}`}>
                         <Icon className="h-4 w-4" />
-                        <span>{CATEGORY_LABELS[cat as Category]}</span>
+                        <span className="font-semibold text-sm">{CATEGORY_LABELS[cat as Category]}</span>
                       </Link>
                     </SidebarMenuButton>
                   </SidebarMenuItem>
@@ -71,8 +71,8 @@ export function AppSidebar() {
           </SidebarGroupContent>
         </SidebarGroup>
       </SidebarContent>
-      <SidebarFooter className="p-4">
-        <p className="text-xs text-muted-foreground text-center">
+      <SidebarFooter className="p-4 border-t border-sidebar-border">
+        <p className="text-[10px] font-bold text-sidebar-foreground/40 text-center uppercase tracking-[0.15em]">
           Admin Panel v1.0
         </p>
       </SidebarFooter>

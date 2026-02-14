@@ -35,7 +35,7 @@ function App() {
             <div className="flex h-screen w-full">
               <AppSidebar />
               <div className="flex flex-col flex-1 min-w-0">
-                <header className="flex items-center justify-between gap-2 p-2 border-b sticky top-0 z-50 bg-background">
+                <header className="flex items-center justify-between gap-4 px-4 py-2 border-b sticky top-0 z-50 bg-background">
                   <SidebarTrigger data-testid="button-sidebar-toggle" />
                   <ThemeToggle />
                 </header>

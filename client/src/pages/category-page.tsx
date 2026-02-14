@@ -111,28 +111,29 @@ export default function CategoryPage() {
   if (!isValidCategory) {
     return (
       <div className="flex items-center justify-center h-full p-6">
-        <p className="text-muted-foreground">Category not found.</p>
+        <p className="text-muted-foreground font-semibold">Category not found.</p>
       </div>
     );
   }
 
   return (
-    <div className="p-6 space-y-4 max-w-4xl mx-auto">
-      <div className="flex items-center justify-between gap-4 flex-wrap">
-        <div className="flex items-center gap-3">
+    <div className="p-6 md:p-8 space-y-6 max-w-4xl mx-auto">
+      <div className="flex items-end justify-between gap-4 flex-wrap">
+        <div className="flex items-center gap-4">
           {Icon && (
-            <div className="flex items-center justify-center w-10 h-10 rounded-md bg-primary/10">
-              <Icon className="h-5 w-5 text-primary" />
+            <div className="flex items-center justify-center w-12 h-12 rounded-md bg-primary">
+              <Icon className="h-6 w-6 text-primary-foreground" />
             </div>
           )}
           <div>
-            <h1 className="text-2xl font-bold tracking-tight" data-testid="text-category-title">{label}</h1>
-            <p className="text-sm text-muted-foreground">
+            <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-primary">Category</p>
+            <h1 className="text-2xl md:text-3xl font-black tracking-tight uppercase" data-testid="text-category-title">{label}</h1>
+            <p className="text-xs text-muted-foreground font-medium mt-0.5">
               {isLoading ? "Loading..." : `${listings?.length ?? 0} listings`}
             </p>
           </div>
         </div>
-        <Button onClick={() => setShowForm(true)} data-testid="button-add-listing">
+        <Button onClick={() => setShowForm(true)} data-testid="button-add-listing" className="font-bold uppercase tracking-wide">
           <Plus className="h-4 w-4 mr-2" />
           Add {label}
         </Button>
@@ -144,7 +145,7 @@ export default function CategoryPage() {
           placeholder={`Search ${label.toLowerCase()}...`}
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          className="pl-9"
+          className="pl-9 font-medium"
           data-testid="input-search"
         />
       </div>
@@ -152,7 +153,7 @@ export default function CategoryPage() {
       {isLoading ? (
         <div className="space-y-3">
           {[1, 2, 3].map((i) => (
-            <Skeleton key={i} className="h-24 w-full" />
+            <Skeleton key={i} className="h-28 w-full" />
           ))}
         </div>
       ) : filteredListings && filteredListings.length > 0 ? (
@@ -167,13 +168,13 @@ export default function CategoryPage() {
           ))}
         </div>
       ) : (
-        <div className="flex flex-col items-center justify-center py-16 text-center">
-          {Icon && <Icon className="h-12 w-12 text-muted-foreground/30 mb-4" />}
-          <h3 className="font-medium text-muted-foreground">No listings yet</h3>
-          <p className="text-sm text-muted-foreground/70 mt-1">
+        <div className="flex flex-col items-center justify-center py-20 text-center">
+          {Icon && <Icon className="h-16 w-16 text-muted-foreground/20 mb-4" />}
+          <h3 className="font-extrabold text-lg uppercase tracking-wide text-muted-foreground">No listings yet</h3>
+          <p className="text-sm text-muted-foreground/70 mt-1 font-medium">
             Add your first {label.toLowerCase()} listing to get started.
           </p>
-          <Button className="mt-4" variant="outline" onClick={() => setShowForm(true)} data-testid="button-add-first">
+          <Button className="mt-6 font-bold uppercase tracking-wide" onClick={() => setShowForm(true)} data-testid="button-add-first">
             <Plus className="h-4 w-4 mr-2" />
             Add {label}
           </Button>
@@ -183,7 +184,7 @@ export default function CategoryPage() {
       <Dialog open={showForm} onOpenChange={setShowForm}>
         <DialogContent className="max-w-2xl max-h-[90vh] p-0">
           <DialogHeader className="p-6 pb-0">
-            <DialogTitle>Add New {label}</DialogTitle>
+            <DialogTitle className="font-black uppercase tracking-wide">Add New {label}</DialogTitle>
             <DialogDescription>Fill in the details below to create a new {label.toLowerCase()} listing.</DialogDescription>
           </DialogHeader>
           <ScrollArea className="max-h-[70vh] p-6 pt-4">
@@ -199,7 +200,7 @@ export default function CategoryPage() {
       <Dialog open={!!editListing} onOpenChange={() => setEditListing(null)}>
         <DialogContent className="max-w-2xl max-h-[90vh] p-0">
           <DialogHeader className="p-6 pb-0">
-            <DialogTitle>Edit {editListing?.name}</DialogTitle>
+            <DialogTitle className="font-black uppercase tracking-wide">Edit {editListing?.name}</DialogTitle>
             <DialogDescription>Update the listing details below.</DialogDescription>
           </DialogHeader>
           <ScrollArea className="max-h-[70vh] p-6 pt-4">
@@ -219,7 +220,7 @@ export default function CategoryPage() {
       <AlertDialog open={!!deleteListing} onOpenChange={() => setDeleteListing(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Delete "{deleteListing?.name}"?</AlertDialogTitle>
+            <AlertDialogTitle className="font-black uppercase">Delete "{deleteListing?.name}"?</AlertDialogTitle>
             <AlertDialogDescription>
               This action cannot be undone. This will permanently remove the listing from the system and the mobile app.
             </AlertDialogDescription>
@@ -228,7 +229,7 @@ export default function CategoryPage() {
             <AlertDialogCancel data-testid="button-cancel-delete">Cancel</AlertDialogCancel>
             <AlertDialogAction
               onClick={() => deleteListing && deleteMutation.mutate(deleteListing.id)}
-              className="bg-destructive text-destructive-foreground"
+              className="bg-destructive text-destructive-foreground font-bold uppercase"
               data-testid="button-confirm-delete"
             >
               Delete

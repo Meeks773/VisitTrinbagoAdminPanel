@@ -104,7 +104,7 @@ export function ListingForm({ category, listing, onSubmit, isPending }: ListingF
     <Form {...form}>
       <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-6">
         <Card className="p-4 space-y-4">
-          <h3 className="text-sm font-medium text-muted-foreground uppercase tracking-wider">Images</h3>
+          <h3 className="text-[11px] font-bold text-muted-foreground uppercase tracking-[0.15em]">Images</h3>
           <ImageUpload
             value={featuredImage}
             onChange={setFeaturedImage}
@@ -120,7 +120,7 @@ export function ListingForm({ category, listing, onSubmit, isPending }: ListingF
         </Card>
 
         <Card className="p-4 space-y-4">
-          <h3 className="text-sm font-medium text-muted-foreground uppercase tracking-wider">Basic Information</h3>
+          <h3 className="text-[11px] font-bold text-muted-foreground uppercase tracking-[0.15em]">Basic Information</h3>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {commonFields.map((fieldConfig) => (
               <div key={fieldConfig.key} className={fieldConfig.type === "textarea" ? "md:col-span-2" : ""}>
@@ -132,7 +132,7 @@ export function ListingForm({ category, listing, onSubmit, isPending }: ListingF
 
         {metadataFields.length > 0 && (
           <Card className="p-4 space-y-4">
-            <h3 className="text-sm font-medium text-muted-foreground uppercase tracking-wider">Category Details</h3>
+            <h3 className="text-[11px] font-bold text-muted-foreground uppercase tracking-[0.15em]">Category Details</h3>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {metadataFields.map((fieldConfig) => (
                 <div key={fieldConfig.key} className={fieldConfig.type === "textarea" || fieldConfig.type === "tags" ? "md:col-span-2" : ""}>
@@ -146,7 +146,7 @@ export function ListingForm({ category, listing, onSubmit, isPending }: ListingF
         <div className="flex justify-end">
           <Button type="submit" disabled={isPending} data-testid="button-submit-listing">
             {isPending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Save className="h-4 w-4 mr-2" />}
-            {listing ? "Update Listing" : "Create Listing"}
+            <span className="font-bold uppercase tracking-wide">{listing ? "Update Listing" : "Create Listing"}</span>
           </Button>
         </div>
       </form>

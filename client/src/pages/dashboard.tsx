@@ -2,10 +2,11 @@ import { useQuery } from "@tanstack/react-query";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Button } from "@/components/ui/button";
 import { Link } from "wouter";
 import { CATEGORIES, CATEGORY_LABELS, type Category, type Listing } from "@shared/schema";
 import { categoryIcons } from "@/lib/category-config";
-import { ArrowRight, Globe, TrendingUp, Layers } from "lucide-react";
+import { ArrowRight, Layers, TrendingUp } from "lucide-react";
 
 export default function Dashboard() {
   const { data: listings, isLoading } = useQuery<Listing[]>({
@@ -24,76 +25,75 @@ export default function Dashboard() {
   const totalRewardPoints = listings?.reduce((sum, l) => sum + (l.rewardPoints ?? 0), 0) ?? 0;
 
   return (
-    <div className="p-6 space-y-6 max-w-6xl mx-auto">
-      <div>
-        <h1 className="text-2xl font-bold tracking-tight" data-testid="text-dashboard-title">Dashboard</h1>
-        <p className="text-muted-foreground mt-1">Manage your VisitTrinbago content across all categories.</p>
+    <div className="p-6 md:p-8 space-y-8 max-w-6xl mx-auto">
+      <div className="flex items-end justify-between gap-4 flex-wrap">
+        <div>
+          <p className="text-xs font-bold uppercase tracking-[0.2em] text-primary mb-1" data-testid="text-dashboard-label">Admin Overview</p>
+          <h1 className="text-3xl md:text-4xl font-black tracking-tight uppercase" data-testid="text-dashboard-title">Dashboard</h1>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <Card className="p-4">
-          <div className="flex items-center justify-between gap-2">
-            <div>
-              <p className="text-sm text-muted-foreground">Total Listings</p>
+        <Card className="p-0 overflow-hidden">
+          <div className="flex">
+            <div className="w-1.5 bg-primary shrink-0"></div>
+            <div className="p-5">
+              <p className="text-[11px] font-bold uppercase tracking-[0.15em] text-muted-foreground">Total Listings</p>
               {isLoading ? (
-                <Skeleton className="h-8 w-16 mt-1" />
+                <Skeleton className="h-10 w-20 mt-2" />
               ) : (
-                <p className="text-2xl font-bold" data-testid="text-total-listings">{totalListings}</p>
+                <p className="text-4xl font-black mt-1" data-testid="text-total-listings">{totalListings}</p>
               )}
-            </div>
-            <div className="flex items-center justify-center w-10 h-10 rounded-md bg-primary/10">
-              <Layers className="h-5 w-5 text-primary" />
             </div>
           </div>
         </Card>
-        <Card className="p-4">
-          <div className="flex items-center justify-between gap-2">
-            <div>
-              <p className="text-sm text-muted-foreground">Categories</p>
-              <p className="text-2xl font-bold" data-testid="text-total-categories">{CATEGORIES.length}</p>
-            </div>
-            <div className="flex items-center justify-center w-10 h-10 rounded-md bg-primary/10">
-              <Globe className="h-5 w-5 text-primary" />
+        <Card className="p-0 overflow-hidden">
+          <div className="flex">
+            <div className="w-1.5 bg-foreground shrink-0"></div>
+            <div className="p-5">
+              <p className="text-[11px] font-bold uppercase tracking-[0.15em] text-muted-foreground">Categories</p>
+              <p className="text-4xl font-black mt-1" data-testid="text-total-categories">{CATEGORIES.length}</p>
             </div>
           </div>
         </Card>
-        <Card className="p-4">
-          <div className="flex items-center justify-between gap-2">
-            <div>
-              <p className="text-sm text-muted-foreground">Total Reward Points</p>
+        <Card className="p-0 overflow-hidden">
+          <div className="flex">
+            <div className="w-1.5 bg-primary shrink-0"></div>
+            <div className="p-5">
+              <p className="text-[11px] font-bold uppercase tracking-[0.15em] text-muted-foreground">Reward Points</p>
               {isLoading ? (
-                <Skeleton className="h-8 w-16 mt-1" />
+                <Skeleton className="h-10 w-20 mt-2" />
               ) : (
-                <p className="text-2xl font-bold" data-testid="text-total-points">{totalRewardPoints}</p>
+                <p className="text-4xl font-black mt-1" data-testid="text-total-points">{totalRewardPoints.toLocaleString()}</p>
               )}
-            </div>
-            <div className="flex items-center justify-center w-10 h-10 rounded-md bg-primary/10">
-              <TrendingUp className="h-5 w-5 text-primary" />
             </div>
           </div>
         </Card>
       </div>
 
       <div>
-        <h2 className="text-lg font-semibold mb-3">Categories</h2>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+        <div className="flex items-center gap-3 mb-4">
+          <div className="w-1 h-6 bg-primary rounded-sm"></div>
+          <h2 className="text-lg font-extrabold uppercase tracking-wide">Categories</h2>
+        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
           {CATEGORIES.map((cat) => {
             const Icon = categoryIcons[cat as Category];
             const count = categoryCounts[cat];
             return (
               <Link key={cat} href={`/category/${cat}`}>
-                <Card className="p-4 hover-elevate cursor-pointer" data-testid={`card-category-${cat}`}>
-                  <div className="flex items-center justify-between gap-2">
+                <Card className="p-4 hover-elevate cursor-pointer group" data-testid={`card-category-${cat}`}>
+                  <div className="flex items-center justify-between gap-3">
                     <div className="flex items-center gap-3">
-                      <div className="flex items-center justify-center w-9 h-9 rounded-md bg-primary/10">
-                        <Icon className="h-4 w-4 text-primary" />
+                      <div className="flex items-center justify-center w-10 h-10 rounded-md bg-primary/10">
+                        <Icon className="h-5 w-5 text-primary" />
                       </div>
                       <div>
-                        <p className="font-medium text-sm">{CATEGORY_LABELS[cat as Category]}</p>
+                        <p className="font-bold text-sm uppercase tracking-wide">{CATEGORY_LABELS[cat as Category]}</p>
                         {isLoading ? (
-                          <Skeleton className="h-4 w-12 mt-1" />
+                          <Skeleton className="h-3 w-12 mt-1" />
                         ) : (
-                          <p className="text-xs text-muted-foreground">
+                          <p className="text-xs text-muted-foreground font-medium">
                             {count} {count === 1 ? "listing" : "listings"}
                           </p>
                         )}
@@ -110,7 +110,10 @@ export default function Dashboard() {
 
       {!isLoading && listings && listings.length > 0 && (
         <div>
-          <h2 className="text-lg font-semibold mb-3">Recently Added</h2>
+          <div className="flex items-center gap-3 mb-4">
+            <div className="w-1 h-6 bg-foreground rounded-sm"></div>
+            <h2 className="text-lg font-extrabold uppercase tracking-wide">Recently Added</h2>
+          </div>
           <div className="space-y-2">
             {listings.slice(-5).reverse().map((listing) => {
               const Icon = categoryIcons[listing.category as Category];
@@ -121,10 +124,10 @@ export default function Dashboard() {
                       <Icon className="h-4 w-4 text-primary" />
                     </div>
                     <div className="min-w-0 flex-1">
-                      <p className="font-medium text-sm truncate">{listing.name}</p>
-                      <p className="text-xs text-muted-foreground">{CATEGORY_LABELS[listing.category as Category]}</p>
+                      <p className="font-bold text-sm truncate">{listing.name}</p>
+                      <p className="text-[11px] text-muted-foreground font-medium uppercase tracking-wide">{CATEGORY_LABELS[listing.category as Category]}</p>
                     </div>
-                    <Badge variant="secondary">{listing.subInterest}</Badge>
+                    <Badge variant="secondary" className="font-semibold">{listing.subInterest}</Badge>
                   </div>
                 </Card>
               );

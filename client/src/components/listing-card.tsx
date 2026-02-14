@@ -19,11 +19,11 @@ export function ListingCard({ listing, onEdit, onDelete }: ListingCardProps) {
     <Card className="overflow-visible hover-elevate" data-testid={`card-listing-${listing.id}`}>
       <div className="flex">
         {listing.featuredImage ? (
-          <div className="w-28 h-28 shrink-0 overflow-hidden rounded-l-md">
+          <div className="w-32 shrink-0 overflow-hidden rounded-l-md">
             <img
               src={listing.featuredImage}
               alt={listing.name}
-              className="w-full h-full object-cover"
+              className="w-full h-full object-cover min-h-[7rem]"
               data-testid={`img-listing-${listing.id}`}
             />
           </div>
@@ -36,14 +36,14 @@ export function ListingCard({ listing, onEdit, onDelete }: ListingCardProps) {
               </div>
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-2 flex-wrap">
-                  <h3 className="font-semibold truncate" data-testid={`text-listing-name-${listing.id}`}>
+                  <h3 className="font-bold text-sm uppercase tracking-wide truncate" data-testid={`text-listing-name-${listing.id}`}>
                     {listing.name}
                   </h3>
-                  <Badge variant="secondary" className="shrink-0">
+                  <Badge variant="secondary" className="shrink-0 font-semibold text-[10px] uppercase tracking-wider">
                     {listing.subInterest}
                   </Badge>
                   {imageCount > 0 && (
-                    <span className="flex items-center gap-1 text-xs text-muted-foreground">
+                    <span className="flex items-center gap-1 text-[10px] text-muted-foreground font-medium">
                       <ImageIcon className="h-3 w-3" />
                       {imageCount}
                     </span>
@@ -54,13 +54,13 @@ export function ListingCard({ listing, onEdit, onDelete }: ListingCardProps) {
                 </p>
                 <div className="flex items-center gap-4 mt-2 flex-wrap">
                   {listing.location && (
-                    <span className="flex items-center gap-1 text-xs text-muted-foreground">
+                    <span className="flex items-center gap-1 text-[11px] text-muted-foreground font-medium">
                       <MapPin className="h-3 w-3" />
                       {listing.location}
                     </span>
                   )}
                   {listing.rewardPoints != null && listing.rewardPoints > 0 && (
-                    <span className="flex items-center gap-1 text-xs text-muted-foreground">
+                    <span className="flex items-center gap-1 text-[11px] font-bold text-primary">
                       <Star className="h-3 w-3" />
                       {listing.rewardPoints} pts
                     </span>
@@ -70,7 +70,7 @@ export function ListingCard({ listing, onEdit, onDelete }: ListingCardProps) {
                       href={listing.website}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="flex items-center gap-1 text-xs text-primary"
+                      className="flex items-center gap-1 text-[11px] font-semibold text-foreground/70"
                     >
                       <ExternalLink className="h-3 w-3" />
                       Website
