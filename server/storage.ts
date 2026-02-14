@@ -1,38 +1,42 @@
-import { type User, type InsertUser } from "@shared/schema";
-import { randomUUID } from "crypto";
-
-// modify the interface with any CRUD methods
-// you might need
+import { type Listing, type InsertListing, listings } from "@shared/schema";
+import { db } from "./db";
+import { eq, and } from "drizzle-orm";
 
 export interface IStorage {
-  getUser(id: string): Promise<User | undefined>;
-  getUserByUsername(username: string): Promise<User | undefined>;
-  createUser(user: InsertUser): Promise<User>;
+  getListings(category?: string): Promise<Listing[]>;
+  getListing(id: number): Promise<Listing | undefined>;
+  createListing(data: InsertListing): Promise<Listing>;
+  updateListing(id: number, data: Partial<InsertListing>): Promise<Listing | undefined>;
+  deleteListing(id: number): Promise<boolean>;
 }
 
-export class MemStorage implements IStorage {
-  private users: Map<string, User>;
-
-  constructor() {
-    this.users = new Map();
+export class DatabaseStorage implements IStorage {
+  async getListings(category?: string): Promise<Listing[]> {
+    if (category) {
+      return db.select().from(listings).where(eq(listings.category, category));
+    }
+    return db.select().from(listings);
   }
 
-  async getUser(id: string): Promise<User | undefined> {
-    return this.users.get(id);
+  async getListing(id: number): Promise<Listing | undefined> {
+    const [listing] = await db.select().from(listings).where(eq(listings.id, id));
+    return listing;
   }
 
-  async getUserByUsername(username: string): Promise<User | undefined> {
-    return Array.from(this.users.values()).find(
-      (user) => user.username === username,
-    );
+  async createListing(data: InsertListing): Promise<Listing> {
+    const [listing] = await db.insert(listings).values(data).returning();
+    return listing;
   }
 
-  async createUser(insertUser: InsertUser): Promise<User> {
-    const id = randomUUID();
-    const user: User = { ...insertUser, id };
-    this.users.set(id, user);
-    return user;
+  async updateListing(id: number, data: Partial<InsertListing>): Promise<Listing | undefined> {
+    const [listing] = await db.update(listings).set(data).where(eq(listings.id, id)).returning();
+    return listing;
+  }
+
+  async deleteListing(id: number): Promise<boolean> {
+    const result = await db.delete(listings).where(eq(listings.id, id)).returning();
+    return result.length > 0;
   }
 }
 
-export const storage = new MemStorage();
+export const storage = new DatabaseStorage();
