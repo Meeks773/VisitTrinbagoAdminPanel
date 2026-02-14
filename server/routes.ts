@@ -3,11 +3,13 @@ import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { insertListingSchema } from "@shared/schema";
 import { z } from "zod";
+import { registerObjectStorageRoutes } from "./replit_integrations/object_storage";
 
 export async function registerRoutes(
   httpServer: Server,
   app: Express
 ): Promise<Server> {
+  registerObjectStorageRoutes(app);
 
   app.get("/api/listings", async (req, res) => {
     try {
