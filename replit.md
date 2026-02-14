@@ -1,7 +1,7 @@
 # VisitTrinbago Content Management System
 
 ## Overview
-Admin web application for managing tourism content displayed in the VisitTrinbago mobile app. Supports 8 content categories with full CRUD operations and exposes a public API for mobile app consumption.
+Admin web application for managing tourism content displayed in the VisitTrinbago mobile app. Supports 11 content categories with full CRUD operations and exposes a public API for mobile app consumption. Bold red/black/white brand aesthetic with Montserrat font.
 
 ## Architecture
 - **Frontend**: React + Vite + TailwindCSS + shadcn/ui components
@@ -9,6 +9,7 @@ Admin web application for managing tourism content displayed in the VisitTrinbag
 - **Database**: PostgreSQL with Drizzle ORM
 - **Routing**: wouter (frontend), Express (backend)
 - **State**: TanStack React Query
+- **Design**: Bold poster-inspired aesthetic — Montserrat font, uppercase typography, red/black/white palette
 
 ## Categories
 nightlife, beaches, wellness, festivals, stay, transport, business, tours, eat_drink, attractions, shopping
@@ -24,23 +25,67 @@ Single `listings` table with common fields (name, interest, subInterest, descrip
 - Object storage integration files in server/replit_integrations/object_storage/
 - Upload components in client/src/components/image-upload.tsx
 
-## API Endpoints
+## Admin API Endpoints
 - `GET /api/listings?category=xxx` - Admin listing retrieval
 - `GET /api/listings/:id` - Single listing
 - `POST /api/listings` - Create listing
 - `PATCH /api/listings/:id` - Update listing
 - `DELETE /api/listings/:id` - Delete listing
-- `GET /api/public/listings?category=xxx` - Public API for mobile app
-- `GET /api/public/listings/:id` - Public single listing
+
+## Public API Endpoints (Mobile App)
+All public endpoints are read-only and require no authentication.
+
+### Categories Overview
+- `GET /api/public/categories` - All categories with listing counts
+
+### Listings (paginated, filterable, sortable)
+- `GET /api/public/listings` - Browse listings with query params:
+  - `category` - Filter by category (e.g. nightlife, beaches)
+  - `search` - Search by name, description, sub-interest, location
+  - `subInterest` - Filter by sub-interest
+  - `sort` - Sort by: name, reward_points, newest (default), distance
+  - `page` - Page number (default: 1)
+  - `limit` - Items per page (default: 20, max: 100)
+  - `lat` & `lng` - Center point for nearby search
+  - `radius` - Radius in km (default: 25)
+
+### Single Listing
+- `GET /api/public/listings/:id` - Get full listing details
+
+### Search (convenience)
+- `GET /api/public/search?q=xxx` - Search across all categories
+  - `page` and `limit` supported
+
+### Nearby (convenience)
+- `GET /api/public/nearby?lat=xxx&lng=xxx` - Find nearby listings
+  - `radius` - km radius (default: 25)
+  - `category` - optional category filter
+  - `page` and `limit` supported
+
+### Response Format
+All paginated endpoints return:
+```json
+{
+  "data": [...],
+  "pagination": {
+    "page": 1,
+    "limit": 20,
+    "total": 45,
+    "totalPages": 3,
+    "hasMore": true
+  }
+}
+```
 
 ## Key Files
 - `shared/schema.ts` - Database schema & types
-- `server/routes.ts` - API routes
+- `server/routes.ts` - API routes (admin + public)
 - `server/storage.ts` - Database operations
 - `server/seed.ts` - Seed data
 - `client/src/lib/category-config.ts` - Category field configurations
 - `client/src/components/listing-form.tsx` - Dynamic form builder
-- `client/src/pages/category-page.tsx` - Category CRUD page
+- `client/src/pages/category-page.tsx` - Category listing page
+- `client/src/pages/listing-form-page.tsx` - Full-page add/edit form (animated)
 - `client/src/pages/dashboard.tsx` - Dashboard overview
 
 ## Running
