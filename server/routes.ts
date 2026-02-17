@@ -279,7 +279,20 @@ Important rules:
 - Make coordinates realistic for Trinidad and Tobago
 - Return ONLY valid JSON, no markdown or extra text`;
 
-      const searchQuery = `${name} Trinidad and Tobago ${categoryLabel}`;
+      const categorySearchTerms: Record<string, string> = {
+        nightlife: "nightclub bar caribbean nightlife",
+        beaches: "tropical beach caribbean ocean",
+        wellness: "spa wellness retreat tropical",
+        festivals: "caribbean festival carnival celebration",
+        stay: "tropical hotel resort room",
+        transport: "caribbean travel transport",
+        business: "modern business conference room",
+        tours: "caribbean nature tour adventure",
+        eat_drink: "caribbean restaurant food cuisine",
+        attractions: "tropical landmark attraction sightseeing",
+        shopping: "caribbean market shopping crafts",
+      };
+      const searchQuery = `${name} ${categorySearchTerms[category] || categoryLabel}`;
 
       const [aiResponse, pexelsUrls] = await Promise.all([
         openai.chat.completions.create({
