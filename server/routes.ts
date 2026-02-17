@@ -4,12 +4,58 @@ import { storage } from "./storage";
 import { insertListingSchema, CATEGORIES, CATEGORY_LABELS } from "@shared/schema";
 import { z } from "zod";
 import { registerObjectStorageRoutes } from "./replit_integrations/object_storage";
+import { ObjectStorageService } from "./replit_integrations/object_storage/objectStorage";
 import OpenAI from "openai";
+
+const objectStorageService = new ObjectStorageService();
 
 const openai = new OpenAI({
   apiKey: process.env.AI_INTEGRATIONS_OPENAI_API_KEY,
   baseURL: process.env.AI_INTEGRATIONS_OPENAI_BASE_URL,
 });
+
+async function searchPexelsImages(query: string, count: number = 5): Promise<string[]> {
+  const apiKey = process.env.PEXELS_API_KEY;
+  if (!apiKey) return [];
+
+  try {
+    const response = await fetch(
+      `https://api.pexels.com/v1/search?query=${encodeURIComponent(query)}&per_page=${count}&orientation=landscape`,
+      { headers: { Authorization: apiKey } }
+    );
+    if (!response.ok) return [];
+
+    const data = await response.json() as any;
+    return (data.photos || []).map((p: any) => p.src?.large || p.src?.original);
+  } catch {
+    return [];
+  }
+}
+
+async function uploadImageFromUrl(imageUrl: string): Promise<string | null> {
+  try {
+    const imageResponse = await fetch(imageUrl);
+    if (!imageResponse.ok) return null;
+
+    const imageBuffer = Buffer.from(await imageResponse.arrayBuffer());
+    const contentType = imageResponse.headers.get("content-type") || "image/jpeg";
+
+    const presignedUrl = await objectStorageService.getObjectEntityUploadURL();
+
+    const uploadResponse = await fetch(presignedUrl, {
+      method: "PUT",
+      headers: { "Content-Type": contentType },
+      body: imageBuffer,
+    });
+
+    if (!uploadResponse.ok) return null;
+
+    return objectStorageService.normalizeObjectEntityPath(presignedUrl);
+  } catch (err) {
+    console.error("Image upload error:", err);
+    return null;
+  }
+}
 
 const categoryMetadataFields: Record<string, { key: string; label: string; type: string; options?: string[] }[]> = {
   nightlife: [
@@ -233,19 +279,37 @@ Important rules:
 - Make coordinates realistic for Trinidad and Tobago
 - Return ONLY valid JSON, no markdown or extra text`;
 
-      const response = await openai.chat.completions.create({
-        model: "gpt-5-mini",
-        messages: [{ role: "user", content: prompt }],
-        response_format: { type: "json_object" },
-        max_completion_tokens: 8192,
-      });
+      const searchQuery = `${name} Trinidad and Tobago ${categoryLabel}`;
 
-      const content = response.choices[0]?.message?.content;
+      const [aiResponse, pexelsUrls] = await Promise.all([
+        openai.chat.completions.create({
+          model: "gpt-5-mini",
+          messages: [{ role: "user", content: prompt }],
+          response_format: { type: "json_object" },
+          max_completion_tokens: 8192,
+        }),
+        searchPexelsImages(searchQuery, 5),
+      ]);
+
+      const content = aiResponse.choices[0]?.message?.content;
       if (!content) {
         return res.status(500).json({ message: "AI did not return content" });
       }
 
       const generated = JSON.parse(content);
+
+      if (pexelsUrls.length > 0) {
+        const uploadPromises = pexelsUrls.map((url) => uploadImageFromUrl(url));
+        const uploadedPaths = (await Promise.all(uploadPromises)).filter(
+          (p): p is string => p !== null
+        );
+
+        if (uploadedPaths.length > 0) {
+          generated.featuredImage = uploadedPaths[0];
+          generated.galleryImages = uploadedPaths.slice(1);
+        }
+      }
+
       res.json(generated);
     } catch (err: any) {
       console.error("AI generation error:", err);

@@ -84,8 +84,10 @@ All paginated endpoints return:
 - Category-aware: knows the exact metadata fields for each of the 11 categories
 - Descriptions are written in travel-guide tone with sensory details and local flavor
 - Coordinates are generated within realistic Trinidad and Tobago ranges
-- Frontend: "AI Generate" button in listing form — user types name, clicks generate, all fields auto-fill
+- Auto-fetches cover + gallery images from Pexels (free stock photo API) and uploads to object storage
+- Frontend: "AI Generate" button in listing form — user types name, clicks generate, all fields + images auto-fill
 - Integration files in server/replit_integrations/ (chat, audio, image, batch utilities)
+- Requires PEXELS_API_KEY secret for image search (free at pexels.com/api)
 
 ## Key Files
 - `shared/schema.ts` - Database schema & types

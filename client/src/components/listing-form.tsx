@@ -123,9 +123,19 @@ export function ListingForm({ category, listing, onSubmit, isPending }: ListingF
         }
       }
 
+      if (generated.featuredImage) {
+        setFeaturedImage(generated.featuredImage);
+      }
+      if (generated.galleryImages && Array.isArray(generated.galleryImages) && generated.galleryImages.length > 0) {
+        setGalleryImages(generated.galleryImages);
+      }
+
+      const hasImages = generated.featuredImage || (generated.galleryImages && generated.galleryImages.length > 0);
       toast({
         title: "Content generated",
-        description: "AI has filled in the fields. Review and edit as needed before saving.",
+        description: hasImages
+          ? "AI has filled in all fields including images. Review and edit as needed before saving."
+          : "AI has filled in the fields. Review and edit as needed before saving.",
       });
     } catch (err: any) {
       toast({
