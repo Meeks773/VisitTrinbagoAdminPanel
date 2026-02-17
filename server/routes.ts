@@ -13,6 +13,7 @@ const openai = new OpenAI({
 
 const categoryMetadataFields: Record<string, { key: string; label: string; type: string; options?: string[] }[]> = {
   nightlife: [
+    { key: "videoUrls", label: "Video URLs", type: "array" },
     { key: "openingHours", label: "Opening Hours", type: "text" },
     { key: "openingHoursNotes", label: "Opening Hours Notes", type: "text" },
     { key: "noCoverCharge", label: "No Cover Charge", type: "boolean" },
@@ -20,6 +21,7 @@ const categoryMetadataFields: Record<string, { key: string; label: string; type:
     { key: "coverChargeAmount", label: "Cover Charge Amount", type: "number" },
     { key: "dressCode", label: "Dress Code", type: "text" },
     { key: "ageRestriction", label: "Age Restriction", type: "text" },
+    { key: "bookingUrl", label: "Booking URL", type: "text" },
     { key: "amenities", label: "Amenities", type: "array" },
     { key: "specialNights", label: "Special Nights/Offers", type: "array" },
   ],
@@ -38,6 +40,8 @@ const categoryMetadataFields: Record<string, { key: string; label: string; type:
   ],
   festivals: [
     { key: "organizer", label: "Organizer", type: "text" },
+    { key: "bookingUrl", label: "Booking URL", type: "text" },
+    { key: "dateTime", label: "Date & Time", type: "datetime" },
     { key: "dressCode", label: "Dress Code", type: "text" },
   ],
   stay: [
@@ -46,27 +50,32 @@ const categoryMetadataFields: Record<string, { key: string; label: string; type:
     { key: "minPrice", label: "Minimum Price", type: "number" },
     { key: "maxPrice", label: "Maximum Price", type: "number" },
     { key: "priceNotes", label: "Price Notes", type: "text" },
-    { key: "checkInTime", label: "Check-in Time", type: "text" },
-    { key: "checkOutTime", label: "Check-out Time", type: "text" },
+    { key: "checkInTime", label: "Check-in Time", type: "time" },
+    { key: "checkOutTime", label: "Check-out Time", type: "time" },
     { key: "amenities", label: "Amenities", type: "array" },
+    { key: "bookingUrl", label: "Booking URL", type: "text" },
   ],
   transport: [
     { key: "bookingWebsite", label: "Booking Website", type: "text" },
   ],
   business: [
     { key: "typeOfFacility", label: "Type of Facility", type: "select", options: ["Conference Centre", "Co-working Space", "Office", "Business Lounge", "Meeting Room"] },
+    { key: "guidesUrl", label: "Guides URL", type: "text" },
+    { key: "bookingUrl", label: "Booking URL", type: "text" },
     { key: "specialFeatures", label: "Special Features", type: "array" },
   ],
   tours: [
     { key: "tourStartEndTime", label: "Tour Start & End Time", type: "text" },
     { key: "avgCostPerPerson", label: "Average Cost Per Person", type: "text" },
     { key: "dressCode", label: "Dress Code", type: "text" },
+    { key: "bookingWebsite", label: "Booking Website", type: "text" },
     { key: "contactName", label: "Contact Name", type: "text" },
   ],
   eat_drink: [
     { key: "typeOfCuisine", label: "Type of Cuisine", type: "text" },
     { key: "priceRange", label: "Price Range", type: "select", options: ["$ (budget)", "$$ (mid-range)", "$$$ (upscale)", "$$$$ (fine dining)"] },
     { key: "openingHours", label: "Opening Hours", type: "text" },
+    { key: "bookingUrl", label: "Booking URL", type: "text" },
     { key: "amenities", label: "Amenities", type: "array" },
   ],
   attractions: [
@@ -75,11 +84,13 @@ const categoryMetadataFields: Record<string, { key: string; label: string; type:
     { key: "entryFeeAmount", label: "Entry Fee Amount", type: "number" },
     { key: "openingHours", label: "Opening Hours", type: "text" },
     { key: "openingHoursNotes", label: "Opening Hours Notes", type: "text" },
+    { key: "bookingUrl", label: "Booking URL", type: "text" },
     { key: "amenities", label: "Amenities", type: "array" },
   ],
   shopping: [
     { key: "typeOfFacility", label: "Type of Facility", type: "select", options: ["Market", "Craft", "Mall", "Boutique", "Souvenir Shop", "Duty-Free"] },
     { key: "openingHours", label: "Opening Hours", type: "text" },
+    { key: "bookingUrl", label: "Booking URL", type: "text" },
     { key: "amenities", label: "Amenities", type: "array" },
   ],
 };
@@ -190,6 +201,8 @@ export async function registerRoutes(
         if (f.type === "number") desc += " - numeric value";
         if (f.type === "array") desc += " - array of strings";
         if (f.type === "select" && f.options) desc += ` - one of: ${f.options.join(", ")}`;
+        if (f.type === "datetime") desc += " - ISO datetime string (e.g. 2025-02-15T19:00)";
+        if (f.type === "time") desc += " - time string in HH:MM format (e.g. 14:00)";
         return desc;
       }).join("\n    ");
 
