@@ -13,7 +13,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { TagInput } from "@/components/tag-input";
 import { Card } from "@/components/ui/card";
 import { ImageUpload, GalleryUpload } from "@/components/image-upload";
-import { Save, Loader2 } from "lucide-react";
+import { Save, Loader2, Sparkles } from "lucide-react";
+import { apiRequest } from "@/lib/queryClient";
+import { useToast } from "@/hooks/use-toast";
 
 interface ListingFormProps {
   category: Category;
@@ -68,14 +70,73 @@ function getDefaultValues(fields: FieldConfig[], listing?: Listing) {
 export function ListingForm({ category, listing, onSubmit, isPending }: ListingFormProps) {
   const fields = categoryFields[category];
   const schema = buildFormSchema(fields);
+  const { toast } = useToast();
 
   const [featuredImage, setFeaturedImage] = useState<string | null>(listing?.featuredImage || null);
   const [galleryImages, setGalleryImages] = useState<string[]>(listing?.galleryImages || []);
+  const [isGenerating, setIsGenerating] = useState(false);
 
   const form = useForm({
     resolver: zodResolver(schema),
     defaultValues: getDefaultValues(fields, listing),
   });
+
+  const handleAiGenerate = async () => {
+    const name = form.getValues("name");
+    if (!name || name.trim().length < 2) {
+      toast({
+        title: "Enter a name first",
+        description: "Type the name of the place, then click AI Generate to fill in the rest.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsGenerating(true);
+    try {
+      const res = await apiRequest("POST", "/api/ai/generate-listing", {
+        name: name.trim(),
+        category,
+      });
+      const generated = await res.json();
+
+      for (const field of fields) {
+        if (field.key === "name") continue;
+
+        let value;
+        if (field.isMetadata) {
+          value = generated.metadata?.[field.key];
+        } else {
+          value = generated[field.key];
+        }
+
+        if (value !== undefined && value !== null) {
+          if (field.type === "number") {
+            form.setValue(field.key, Number(value) || 0, { shouldDirty: true });
+          } else if (field.type === "checkbox") {
+            form.setValue(field.key, Boolean(value), { shouldDirty: true });
+          } else if (field.type === "tags") {
+            form.setValue(field.key, Array.isArray(value) ? value : [], { shouldDirty: true });
+          } else {
+            form.setValue(field.key, String(value), { shouldDirty: true });
+          }
+        }
+      }
+
+      toast({
+        title: "Content generated",
+        description: "AI has filled in the fields. Review and edit as needed before saving.",
+      });
+    } catch (err: any) {
+      toast({
+        title: "Generation failed",
+        description: err.message || "Something went wrong. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsGenerating(false);
+    }
+  };
 
   const handleSubmit = (values: Record<string, any>) => {
     const common: Record<string, any> = { category };
@@ -104,6 +165,52 @@ export function ListingForm({ category, listing, onSubmit, isPending }: ListingF
     <Form {...form}>
       <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-6">
         <Card className="p-4 space-y-4">
+          <div className="flex items-center justify-between gap-4 flex-wrap">
+            <h3 className="text-[11px] font-bold text-muted-foreground uppercase tracking-[0.15em]">AI Content Generator</h3>
+          </div>
+          <div className="flex items-end gap-3">
+            <div className="flex-1">
+              <FormField
+                control={form.control}
+                name="name"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Name</FormLabel>
+                    <FormControl>
+                      <Input
+                        {...field}
+                        placeholder="Enter the name of the place..."
+                        data-testid="input-name-ai"
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
+            <Button
+              type="button"
+              variant="default"
+              onClick={handleAiGenerate}
+              disabled={isGenerating}
+              data-testid="button-ai-generate"
+            >
+              {isGenerating ? (
+                <Loader2 className="h-4 w-4 animate-spin mr-2" />
+              ) : (
+                <Sparkles className="h-4 w-4 mr-2" />
+              )}
+              <span className="font-bold uppercase tracking-wide">
+                {isGenerating ? "Generating..." : "AI Generate"}
+              </span>
+            </Button>
+          </div>
+          <p className="text-xs text-muted-foreground">
+            Type the name above, then click AI Generate to auto-fill all fields with tourist-friendly content.
+          </p>
+        </Card>
+
+        <Card className="p-4 space-y-4">
           <h3 className="text-[11px] font-bold text-muted-foreground uppercase tracking-[0.15em]">Images</h3>
           <ImageUpload
             value={featuredImage}
@@ -122,7 +229,7 @@ export function ListingForm({ category, listing, onSubmit, isPending }: ListingF
         <Card className="p-4 space-y-4">
           <h3 className="text-[11px] font-bold text-muted-foreground uppercase tracking-[0.15em]">Basic Information</h3>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {commonFields.map((fieldConfig) => (
+            {commonFields.filter((f) => f.key !== "name").map((fieldConfig) => (
               <div key={fieldConfig.key} className={fieldConfig.type === "textarea" ? "md:col-span-2" : ""}>
                 <RenderField fieldConfig={fieldConfig} form={form} />
               </div>

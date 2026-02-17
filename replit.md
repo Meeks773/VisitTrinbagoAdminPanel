@@ -77,6 +77,16 @@ All paginated endpoints return:
 }
 ```
 
+## AI Content Generation
+- Uses Replit AI Integrations (OpenAI-compatible, no separate API key needed)
+- `POST /api/ai/generate-listing` - Takes `name` and `category`, returns all fields populated with tourist-friendly content
+- Model: gpt-5-mini with JSON response format
+- Category-aware: knows the exact metadata fields for each of the 11 categories
+- Descriptions are written in travel-guide tone with sensory details and local flavor
+- Coordinates are generated within realistic Trinidad and Tobago ranges
+- Frontend: "AI Generate" button in listing form — user types name, clicks generate, all fields auto-fill
+- Integration files in server/replit_integrations/ (chat, audio, image, batch utilities)
+
 ## Key Files
 - `shared/schema.ts` - Database schema & types
 - `server/routes.ts` - API routes (admin + public)

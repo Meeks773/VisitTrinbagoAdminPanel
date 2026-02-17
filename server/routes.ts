@@ -4,6 +4,85 @@ import { storage } from "./storage";
 import { insertListingSchema, CATEGORIES, CATEGORY_LABELS } from "@shared/schema";
 import { z } from "zod";
 import { registerObjectStorageRoutes } from "./replit_integrations/object_storage";
+import OpenAI from "openai";
+
+const openai = new OpenAI({
+  apiKey: process.env.AI_INTEGRATIONS_OPENAI_API_KEY,
+  baseURL: process.env.AI_INTEGRATIONS_OPENAI_BASE_URL,
+});
+
+const categoryMetadataFields: Record<string, { key: string; label: string; type: string; options?: string[] }[]> = {
+  nightlife: [
+    { key: "openingHours", label: "Opening Hours", type: "text" },
+    { key: "openingHoursNotes", label: "Opening Hours Notes", type: "text" },
+    { key: "noCoverCharge", label: "No Cover Charge", type: "boolean" },
+    { key: "currency", label: "Currency", type: "select", options: ["TTD", "USD", "EUR", "GBP"] },
+    { key: "coverChargeAmount", label: "Cover Charge Amount", type: "number" },
+    { key: "dressCode", label: "Dress Code", type: "text" },
+    { key: "ageRestriction", label: "Age Restriction", type: "text" },
+    { key: "amenities", label: "Amenities", type: "array" },
+    { key: "specialNights", label: "Special Nights/Offers", type: "array" },
+  ],
+  beaches: [
+    { key: "freeEntry", label: "Free Entry", type: "boolean" },
+    { key: "currency", label: "Currency", type: "select", options: ["TTD", "USD", "EUR", "GBP"] },
+    { key: "entryFeeAmount", label: "Entry Fee Amount", type: "number" },
+    { key: "openingHours", label: "Opening Hours", type: "text" },
+    { key: "openingHoursNotes", label: "Opening Hours Notes", type: "text" },
+    { key: "amenities", label: "Amenities", type: "array" },
+  ],
+  wellness: [
+    { key: "openingHours", label: "Opening Hours", type: "text" },
+    { key: "openingHoursNotes", label: "Opening Hours Notes", type: "text" },
+    { key: "amenities", label: "Amenities", type: "array" },
+  ],
+  festivals: [
+    { key: "organizer", label: "Organizer", type: "text" },
+    { key: "dressCode", label: "Dress Code", type: "text" },
+  ],
+  stay: [
+    { key: "typeOfAccommodation", label: "Type of Accommodation", type: "select", options: ["Hotel", "Resort", "Guest House", "Villa", "Airbnb", "Hostel", "Boutique Hotel"] },
+    { key: "currency", label: "Currency", type: "select", options: ["TTD", "USD", "EUR", "GBP"] },
+    { key: "minPrice", label: "Minimum Price", type: "number" },
+    { key: "maxPrice", label: "Maximum Price", type: "number" },
+    { key: "priceNotes", label: "Price Notes", type: "text" },
+    { key: "checkInTime", label: "Check-in Time", type: "text" },
+    { key: "checkOutTime", label: "Check-out Time", type: "text" },
+    { key: "amenities", label: "Amenities", type: "array" },
+  ],
+  transport: [
+    { key: "bookingWebsite", label: "Booking Website", type: "text" },
+  ],
+  business: [
+    { key: "typeOfFacility", label: "Type of Facility", type: "select", options: ["Conference Centre", "Co-working Space", "Office", "Business Lounge", "Meeting Room"] },
+    { key: "specialFeatures", label: "Special Features", type: "array" },
+  ],
+  tours: [
+    { key: "tourStartEndTime", label: "Tour Start & End Time", type: "text" },
+    { key: "avgCostPerPerson", label: "Average Cost Per Person", type: "text" },
+    { key: "dressCode", label: "Dress Code", type: "text" },
+    { key: "contactName", label: "Contact Name", type: "text" },
+  ],
+  eat_drink: [
+    { key: "typeOfCuisine", label: "Type of Cuisine", type: "text" },
+    { key: "priceRange", label: "Price Range", type: "select", options: ["$ (budget)", "$$ (mid-range)", "$$$ (upscale)", "$$$$ (fine dining)"] },
+    { key: "openingHours", label: "Opening Hours", type: "text" },
+    { key: "amenities", label: "Amenities", type: "array" },
+  ],
+  attractions: [
+    { key: "freeEntry", label: "Free Entry", type: "boolean" },
+    { key: "currency", label: "Currency", type: "select", options: ["TTD", "USD", "EUR", "GBP"] },
+    { key: "entryFeeAmount", label: "Entry Fee Amount", type: "number" },
+    { key: "openingHours", label: "Opening Hours", type: "text" },
+    { key: "openingHoursNotes", label: "Opening Hours Notes", type: "text" },
+    { key: "amenities", label: "Amenities", type: "array" },
+  ],
+  shopping: [
+    { key: "typeOfFacility", label: "Type of Facility", type: "select", options: ["Market", "Craft", "Mall", "Boutique", "Souvenir Shop", "Duty-Free"] },
+    { key: "openingHours", label: "Opening Hours", type: "text" },
+    { key: "amenities", label: "Amenities", type: "array" },
+  ],
+};
 
 export async function registerRoutes(
   httpServer: Server,
@@ -85,6 +164,79 @@ export async function registerRoutes(
       res.status(204).send();
     } catch (err: any) {
       res.status(500).json({ message: err.message });
+    }
+  });
+
+  // ─── AI Content Generation ─────────────────────────────────────
+
+  app.post("/api/ai/generate-listing", async (req, res) => {
+    try {
+      const { name, category } = req.body;
+
+      if (!name || !category) {
+        return res.status(400).json({ message: "Name and category are required" });
+      }
+
+      if (!CATEGORIES.includes(category)) {
+        return res.status(400).json({ message: "Invalid category" });
+      }
+
+      const categoryLabel = CATEGORY_LABELS[category as keyof typeof CATEGORY_LABELS];
+      const metaFields = categoryMetadataFields[category] || [];
+
+      const metadataFieldsDescription = metaFields.map((f) => {
+        let desc = `"${f.key}" (${f.label})`;
+        if (f.type === "boolean") desc += " - true/false";
+        if (f.type === "number") desc += " - numeric value";
+        if (f.type === "array") desc += " - array of strings";
+        if (f.type === "select" && f.options) desc += ` - one of: ${f.options.join(", ")}`;
+        return desc;
+      }).join("\n    ");
+
+      const prompt = `You are a tourism content writer for Trinidad and Tobago (T&T). Generate content for a "${categoryLabel}" listing called "${name}" in Trinidad and Tobago.
+
+Your response must be valid JSON with these fields:
+{
+  "interest": "broad tourism interest category (e.g. Nature, Culture, Food, Entertainment, Adventure, Relaxation)",
+  "subInterest": "specific sub-category within ${categoryLabel} (e.g. for beaches: Surf Beach, Calm Bay, etc.)",
+  "description": "2-3 paragraph tourist-friendly description that is warm, inviting, and informative. Highlight what makes this place special, what visitors can expect, and why they should visit. Write it like a travel guide, not a Wikipedia article. Include sensory details and local flavor.",
+  "location": "full address or location description in Trinidad and Tobago",
+  "latitude": latitude as a number (approximate coordinates in Trinidad and Tobago, lat range roughly 10.0 to 11.5),
+  "longitude": longitude as a number (approximate coordinates in Trinidad and Tobago, lng range roughly -62.0 to -60.5),
+  "website": "a plausible website URL or empty string",
+  "phone": "a plausible Trinidad phone number like +1 (868) XXX-XXXX or empty string",
+  "email": "a plausible email or empty string",
+  "rewardPoints": a suggested reward point value between 10 and 100,
+  "metadata": {
+    ${metadataFieldsDescription}
+  }
+}
+
+Important rules:
+- All content must be specific to Trinidad and Tobago
+- Description should be 2-3 engaging paragraphs written for tourists
+- Use TTD as the default currency if applicable
+- For arrays (amenities, etc.), include 3-6 relevant items
+- Make coordinates realistic for Trinidad and Tobago
+- Return ONLY valid JSON, no markdown or extra text`;
+
+      const response = await openai.chat.completions.create({
+        model: "gpt-5-mini",
+        messages: [{ role: "user", content: prompt }],
+        response_format: { type: "json_object" },
+        max_completion_tokens: 8192,
+      });
+
+      const content = response.choices[0]?.message?.content;
+      if (!content) {
+        return res.status(500).json({ message: "AI did not return content" });
+      }
+
+      const generated = JSON.parse(content);
+      res.json(generated);
+    } catch (err: any) {
+      console.error("AI generation error:", err);
+      res.status(500).json({ message: "Failed to generate content. Please try again." });
     }
   });
 
