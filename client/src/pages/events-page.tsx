@@ -7,6 +7,14 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
   AlertDialog,
   AlertDialogAction,
   AlertDialogCancel,
@@ -16,7 +24,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { Plus, Search, Calendar } from "lucide-react";
+import { Plus, Search, Calendar, Sparkles, Loader2, Globe } from "lucide-react";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 
@@ -24,6 +32,7 @@ export default function EventsPage() {
   const [, navigate] = useLocation();
   const [deleteEvent, setDeleteEvent] = useState<Event | null>(null);
   const [search, setSearch] = useState("");
+  const [showPopulate, setShowPopulate] = useState(false);
   const { toast } = useToast();
 
   const { data: events, isLoading } = useQuery<Event[]>({
@@ -41,6 +50,38 @@ export default function EventsPage() {
     },
     onError: (err: Error) => {
       toast({ title: "Error", description: err.message, variant: "destructive" });
+    },
+  });
+
+  const populateMutation = useMutation({
+    mutationFn: async (timeframe: string) => {
+      const res = await apiRequest("POST", "/api/events/populate", { timeframe });
+      return res.json();
+    },
+    onSuccess: (data: any) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/events"] });
+      setShowPopulate(false);
+      if (data.created === 0) {
+        toast({
+          title: "No events could be created",
+          description: "The web search found events but none could be saved. Please try again.",
+          variant: "destructive",
+        });
+      } else if (data.errors?.length > 0) {
+        toast({
+          title: `${data.created} of ${data.total} events added`,
+          description: `Some events could not be created. ${data.created} were successfully added.`,
+        });
+      } else {
+        toast({
+          title: `${data.created} events added`,
+          description: `Found and created ${data.created} real events from the web.`,
+        });
+      }
+    },
+    onError: (err: Error) => {
+      setShowPopulate(false);
+      toast({ title: "Population failed", description: err.message, variant: "destructive" });
     },
   });
 
@@ -66,10 +107,21 @@ export default function EventsPage() {
             </p>
           </div>
         </div>
-        <Button onClick={() => navigate("/events/new")} data-testid="button-add-event" className="font-bold uppercase tracking-wide">
-          <Plus className="h-4 w-4 mr-2" />
-          Add Event
-        </Button>
+        <div className="flex items-center gap-2 flex-wrap">
+          <Button
+            variant="outline"
+            onClick={() => setShowPopulate(true)}
+            data-testid="button-populate-events"
+            className="font-bold uppercase tracking-wide"
+          >
+            <Sparkles className="h-4 w-4 mr-2" />
+            Populate with AI
+          </Button>
+          <Button onClick={() => navigate("/events/new")} data-testid="button-add-event" className="font-bold uppercase tracking-wide">
+            <Plus className="h-4 w-4 mr-2" />
+            Add Event
+          </Button>
+        </div>
       </div>
 
       <div className="relative">
@@ -105,14 +157,82 @@ export default function EventsPage() {
           <Calendar className="h-16 w-16 text-muted-foreground/20 mb-4" />
           <h3 className="font-extrabold text-lg uppercase tracking-wide text-muted-foreground">No events yet</h3>
           <p className="text-sm text-muted-foreground/70 mt-1 font-medium">
-            Add your first event to get started.
+            Add your first event or populate from the web.
           </p>
-          <Button className="mt-6 font-bold uppercase tracking-wide" onClick={() => navigate("/events/new")} data-testid="button-add-first-event">
-            <Plus className="h-4 w-4 mr-2" />
-            Add Event
-          </Button>
+          <div className="flex items-center gap-2 mt-6">
+            <Button
+              variant="outline"
+              onClick={() => setShowPopulate(true)}
+              className="font-bold uppercase tracking-wide"
+              data-testid="button-populate-first-events"
+            >
+              <Sparkles className="h-4 w-4 mr-2" />
+              Populate with AI
+            </Button>
+            <Button className="font-bold uppercase tracking-wide" onClick={() => navigate("/events/new")} data-testid="button-add-first-event">
+              <Plus className="h-4 w-4 mr-2" />
+              Add Event
+            </Button>
+          </div>
         </div>
       )}
+
+      <Dialog open={showPopulate} onOpenChange={(open) => { if (!populateMutation.isPending) setShowPopulate(open); }}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="font-black uppercase tracking-wide flex items-center gap-2">
+              <Globe className="h-5 w-5 text-primary" />
+              Populate Events from Web
+            </DialogTitle>
+            <DialogDescription className="text-sm">
+              Search the web for real upcoming events in Trinidad & Tobago using AI and automatically add them to your calendar.
+            </DialogDescription>
+          </DialogHeader>
+
+          {populateMutation.isPending ? (
+            <div className="flex flex-col items-center justify-center py-8 gap-4">
+              <Loader2 className="h-10 w-10 animate-spin text-primary" />
+              <div className="text-center">
+                <p className="font-bold uppercase tracking-wide text-sm">Searching the web...</p>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Finding real events, fetching images, and creating entries. This may take a minute.
+                </p>
+              </div>
+            </div>
+          ) : (
+            <>
+              <div className="py-2">
+                <p className="text-sm font-medium mb-3">Choose how far ahead to search for events:</p>
+                <div className="grid grid-cols-2 gap-3">
+                  <Button
+                    variant="outline"
+                    className="h-auto py-4 flex flex-col items-center gap-1 font-bold uppercase tracking-wide"
+                    onClick={() => populateMutation.mutate("week")}
+                    data-testid="button-populate-week"
+                  >
+                    <span className="text-2xl font-black">7</span>
+                    <span className="text-xs text-muted-foreground">Days Ahead</span>
+                  </Button>
+                  <Button
+                    variant="outline"
+                    className="h-auto py-4 flex flex-col items-center gap-1 font-bold uppercase tracking-wide"
+                    onClick={() => populateMutation.mutate("month")}
+                    data-testid="button-populate-month"
+                  >
+                    <span className="text-2xl font-black">30</span>
+                    <span className="text-xs text-muted-foreground">Days Ahead</span>
+                  </Button>
+                </div>
+              </div>
+              <DialogFooter>
+                <p className="text-[10px] text-muted-foreground/60 font-medium">
+                  Powered by Perplexity AI web search
+                </p>
+              </DialogFooter>
+            </>
+          )}
+        </DialogContent>
+      </Dialog>
 
       <AlertDialog open={!!deleteEvent} onOpenChange={() => setDeleteEvent(null)}>
         <AlertDialogContent>

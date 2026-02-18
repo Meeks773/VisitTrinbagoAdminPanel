@@ -484,6 +484,190 @@ Important rules:
     }
   });
 
+  // ─── Perplexity Event Population ─────────────────────────────────
+
+  app.post("/api/events/populate", async (req, res) => {
+    try {
+      const { timeframe } = req.body;
+      if (!timeframe || !["week", "month"].includes(timeframe)) {
+        return res.status(400).json({ message: "Timeframe must be 'week' or 'month'" });
+      }
+
+      const perplexityKey = process.env.PERPLEXITY_API_KEY;
+      if (!perplexityKey) {
+        return res.status(500).json({ message: "Perplexity API key is not configured" });
+      }
+
+      const now = new Date();
+      const endDate = new Date(now);
+      if (timeframe === "week") {
+        endDate.setDate(endDate.getDate() + 7);
+      } else {
+        endDate.setMonth(endDate.getMonth() + 1);
+      }
+
+      const startStr = now.toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" });
+      const endStr = endDate.toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" });
+
+      const perplexityPrompt = `Find real upcoming events happening in Trinidad and Tobago between ${startStr} and ${endStr}. Include concerts, festivals, cultural events, food events, sports, community gatherings, carnival events, exhibitions, workshops, conferences, and religious celebrations.
+
+For each event, provide ALL of the following details (use real, accurate information from the web):
+- name: the official event name
+- eventCategory: one of Concert, Festival, Exhibition, Workshop, Sports, Cultural, Food & Drink, Community, Conference, Carnival, Religious, Other
+- interest: broad interest category (e.g. Entertainment, Culture, Music, Food, Sports, Community, Business, Arts)
+- subInterest: specific sub-category (e.g. Live Band, DJ Set, Art Show, etc.)
+- description: 2-3 paragraph description written in a tourist-friendly travel-guide tone with sensory details
+- startDateTime: ISO format date and time (e.g. 2026-03-15T19:00)
+- endDateTime: ISO format date and time
+- location: full venue name and address in Trinidad and Tobago
+- latitude: approximate latitude (Trinidad range: 10.0-10.7, Tobago range: 11.1-11.35)
+- longitude: approximate longitude (Trinidad range: -61.9 to -60.9, Tobago range: -60.9 to -60.5)
+- isFreeEvent: true or false
+- website: official website URL if available, or empty string
+- bookingUrl: ticket/booking URL if available, or empty string
+- organizerName: organizer or venue name
+- phone: contact phone in format +1 (868) XXX-XXXX, or empty string
+- email: contact email or empty string
+- dressCode: appropriate dress code (e.g. Casual, Smart Casual, Festive Wear, Beach Casual)
+- rewardPoints: suggested loyalty points value 10-100
+
+Return your answer as a JSON array of event objects. Return ONLY the JSON array, no other text. Try to find at least 8-15 real events. If you cannot find enough real events, you may supplement with well-known recurring events in Trinidad and Tobago that typically happen during this period.`;
+
+      const perplexityResponse = await fetch("https://api.perplexity.ai/chat/completions", {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${perplexityKey}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          model: "sonar",
+          messages: [
+            {
+              role: "system",
+              content: "You are a helpful assistant that finds real events in Trinidad and Tobago. Always respond with valid JSON arrays only. No markdown, no code fences, no extra text.",
+            },
+            {
+              role: "user",
+              content: perplexityPrompt,
+            },
+          ],
+          temperature: 0.2,
+          max_tokens: 8192,
+          search_recency_filter: "month",
+          return_images: false,
+          return_related_questions: false,
+        }),
+      });
+
+      if (!perplexityResponse.ok) {
+        const errText = await perplexityResponse.text();
+        console.error("Perplexity API error:", errText);
+        return res.status(502).json({ message: "Failed to reach Perplexity API. Please try again." });
+      }
+
+      const perplexityData = await perplexityResponse.json() as any;
+      const rawContent = perplexityData.choices?.[0]?.message?.content;
+
+      if (!rawContent) {
+        return res.status(502).json({ message: "Perplexity returned no content" });
+      }
+
+      let eventsData: any[];
+      try {
+        let cleaned = rawContent.replace(/```json\s*/gi, "").replace(/```\s*/g, "").trim();
+        const firstBracket = cleaned.indexOf("[");
+        const lastBracket = cleaned.lastIndexOf("]");
+        if (firstBracket !== -1 && lastBracket !== -1 && lastBracket > firstBracket) {
+          cleaned = cleaned.slice(firstBracket, lastBracket + 1);
+        }
+        eventsData = JSON.parse(cleaned);
+        if (!Array.isArray(eventsData)) {
+          eventsData = [eventsData];
+        }
+      } catch (parseErr) {
+        console.error("Failed to parse Perplexity response:", rawContent);
+        return res.status(502).json({ message: "Could not parse event data from Perplexity. Please try again." });
+      }
+
+      const createdEvents: any[] = [];
+      const errors: string[] = [];
+
+      for (const eventData of eventsData) {
+        try {
+          if (!eventData.name || !eventData.startDateTime || !eventData.endDateTime) {
+            errors.push(`Skipped event with missing required fields: ${JSON.stringify(eventData).slice(0, 100)}`);
+            continue;
+          }
+
+          const searchQuery = `${eventData.name} ${eventData.eventCategory || "event"} Trinidad Tobago`;
+          const pexelsUrls = await searchPexelsImages(searchQuery, 3);
+          let featuredImage: string | null = null;
+          let galleryImages: string[] = [];
+
+          if (pexelsUrls.length > 0) {
+            const uploadedPaths = (
+              await Promise.all(pexelsUrls.map((url) => uploadImageFromUrl(url)))
+            ).filter((p): p is string => p !== null);
+
+            if (uploadedPaths.length > 0) {
+              featuredImage = uploadedPaths[0];
+              galleryImages = uploadedPaths.slice(1);
+            }
+          }
+
+          const eventCategory = EVENT_CATEGORIES.includes(eventData.eventCategory)
+            ? eventData.eventCategory
+            : "Other";
+
+          const parsedLat = eventData.latitude != null ? parseFloat(String(eventData.latitude)) : null;
+          const parsedLng = eventData.longitude != null ? parseFloat(String(eventData.longitude)) : null;
+          const safeLat = parsedLat != null && !isNaN(parsedLat) ? parsedLat : null;
+          const safeLng = parsedLng != null && !isNaN(parsedLng) ? parsedLng : null;
+          const safeRewardPoints = Math.max(0, Math.min(100, parseInt(String(eventData.rewardPoints)) || 20));
+
+          const newEvent = await storage.createEvent({
+            name: String(eventData.name).slice(0, 500),
+            eventCategory,
+            interest: String(eventData.interest || "General").slice(0, 200),
+            subInterest: String(eventData.subInterest || eventCategory).slice(0, 200),
+            description: String(eventData.description || `${eventData.name} - an upcoming event in Trinidad and Tobago.`),
+            startDateTime: String(eventData.startDateTime),
+            endDateTime: String(eventData.endDateTime),
+            location: eventData.location ? String(eventData.location) : null,
+            latitude: safeLat,
+            longitude: safeLng,
+            isFreeEvent: eventData.isFreeEvent === true || eventData.isFreeEvent === "true",
+            featuredImage,
+            galleryImages: galleryImages.length > 0 ? galleryImages : null,
+            videoUrls: null,
+            website: eventData.website ? String(eventData.website) : null,
+            bookingUrl: eventData.bookingUrl ? String(eventData.bookingUrl) : null,
+            organizerName: eventData.organizerName ? String(eventData.organizerName) : null,
+            phone: eventData.phone ? String(eventData.phone) : null,
+            email: eventData.email ? String(eventData.email) : null,
+            dressCode: eventData.dressCode ? String(eventData.dressCode) : null,
+            rewardPoints: safeRewardPoints,
+          });
+
+          createdEvents.push(newEvent);
+        } catch (eventErr: any) {
+          errors.push(`Failed to create "${eventData.name}": ${eventErr.message}`);
+        }
+      }
+
+      res.json({
+        message: `Successfully created ${createdEvents.length} events`,
+        created: createdEvents.length,
+        total: eventsData.length,
+        errors: errors.length > 0 ? errors : undefined,
+        citations: perplexityData.citations || [],
+      });
+    } catch (err: any) {
+      console.error("Event population error:", err);
+      res.status(500).json({ message: "Failed to populate events. Please try again." });
+    }
+  });
+
   // ─── Public API for Mobile App ───────────────────────────────────
 
   app.get("/api/public/categories", async (_req, res) => {
