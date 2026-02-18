@@ -488,9 +488,18 @@ Important rules:
 
   app.post("/api/events/populate", async (req, res) => {
     try {
-      const { timeframe } = req.body;
-      if (!timeframe || !["week", "month"].includes(timeframe)) {
-        return res.status(400).json({ message: "Timeframe must be 'week' or 'month'" });
+      const { startDate, endDate } = req.body;
+      if (!startDate || !endDate) {
+        return res.status(400).json({ message: "startDate and endDate are required" });
+      }
+
+      const start = new Date(startDate);
+      const end = new Date(endDate);
+      if (isNaN(start.getTime()) || isNaN(end.getTime())) {
+        return res.status(400).json({ message: "Invalid date format" });
+      }
+      if (end <= start) {
+        return res.status(400).json({ message: "End date must be after start date" });
       }
 
       const perplexityKey = process.env.PERPLEXITY_API_KEY;
@@ -498,16 +507,8 @@ Important rules:
         return res.status(500).json({ message: "Perplexity API key is not configured" });
       }
 
-      const now = new Date();
-      const endDate = new Date(now);
-      if (timeframe === "week") {
-        endDate.setDate(endDate.getDate() + 7);
-      } else {
-        endDate.setMonth(endDate.getMonth() + 1);
-      }
-
-      const startStr = now.toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" });
-      const endStr = endDate.toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" });
+      const startStr = start.toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" });
+      const endStr = end.toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" });
 
       const perplexityPrompt = `Find real upcoming events happening in Trinidad and Tobago between ${startStr} and ${endStr}. Include concerts, festivals, cultural events, food events, sports, community gatherings, carnival events, exhibitions, workshops, conferences, and religious celebrations.
 

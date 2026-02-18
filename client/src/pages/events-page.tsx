@@ -2,10 +2,12 @@ import { useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useLocation } from "wouter";
 import { type Event } from "@shared/schema";
+import { type DateRange } from "react-day-picker";
 import { EventCard } from "@/components/event-card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Calendar } from "@/components/ui/calendar";
 import {
   Dialog,
   DialogContent,
@@ -24,7 +26,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { Plus, Search, Calendar, Sparkles, Loader2, Globe } from "lucide-react";
+import { Plus, Search, Calendar as CalendarIcon, Sparkles, Loader2, Globe } from "lucide-react";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 
@@ -33,6 +35,12 @@ export default function EventsPage() {
   const [deleteEvent, setDeleteEvent] = useState<Event | null>(null);
   const [search, setSearch] = useState("");
   const [showPopulate, setShowPopulate] = useState(false);
+  const [dateRange, setDateRange] = useState<DateRange | undefined>(() => {
+    const from = new Date();
+    const to = new Date();
+    to.setDate(to.getDate() + 7);
+    return { from, to };
+  });
   const { toast } = useToast();
 
   const { data: events, isLoading } = useQuery<Event[]>({
@@ -54,8 +62,8 @@ export default function EventsPage() {
   });
 
   const populateMutation = useMutation({
-    mutationFn: async (timeframe: string) => {
-      const res = await apiRequest("POST", "/api/events/populate", { timeframe });
+    mutationFn: async (range: { startDate: string; endDate: string }) => {
+      const res = await apiRequest("POST", "/api/events/populate", range);
       return res.json();
     },
     onSuccess: (data: any) => {
@@ -85,6 +93,17 @@ export default function EventsPage() {
     },
   });
 
+  const handlePopulate = () => {
+    if (!dateRange?.from || !dateRange?.to) {
+      toast({ title: "Select a date range", description: "Pick a start and end date on the calendar.", variant: "destructive" });
+      return;
+    }
+    populateMutation.mutate({
+      startDate: dateRange.from.toISOString(),
+      endDate: dateRange.to.toISOString(),
+    });
+  };
+
   const filteredEvents = events?.filter(
     (e) =>
       e.name.toLowerCase().includes(search.toLowerCase()) ||
@@ -92,12 +111,15 @@ export default function EventsPage() {
       e.eventCategory.toLowerCase().includes(search.toLowerCase()),
   );
 
+  const formatDateShort = (d: Date) =>
+    d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+
   return (
     <div className="p-6 md:p-8 space-y-6 max-w-4xl mx-auto">
       <div className="flex items-end justify-between gap-4 flex-wrap">
         <div className="flex items-center gap-4">
           <div className="flex items-center justify-center w-12 h-12 rounded-md bg-primary">
-            <Calendar className="h-6 w-6 text-primary-foreground" />
+            <CalendarIcon className="h-6 w-6 text-primary-foreground" />
           </div>
           <div>
             <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-primary">Events</p>
@@ -154,7 +176,7 @@ export default function EventsPage() {
         </div>
       ) : (
         <div className="flex flex-col items-center justify-center py-20 text-center">
-          <Calendar className="h-16 w-16 text-muted-foreground/20 mb-4" />
+          <CalendarIcon className="h-16 w-16 text-muted-foreground/20 mb-4" />
           <h3 className="font-extrabold text-lg uppercase tracking-wide text-muted-foreground">No events yet</h3>
           <p className="text-sm text-muted-foreground/70 mt-1 font-medium">
             Add your first event or populate from the web.
@@ -178,14 +200,14 @@ export default function EventsPage() {
       )}
 
       <Dialog open={showPopulate} onOpenChange={(open) => { if (!populateMutation.isPending) setShowPopulate(open); }}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent className="sm:max-w-fit">
           <DialogHeader>
             <DialogTitle className="font-black uppercase tracking-wide flex items-center gap-2">
               <Globe className="h-5 w-5 text-primary" />
               Populate Events from Web
             </DialogTitle>
             <DialogDescription className="text-sm">
-              Search the web for real upcoming events in Trinidad & Tobago using AI and automatically add them to your calendar.
+              Select a date range to search for real upcoming events in Trinidad & Tobago.
             </DialogDescription>
           </DialogHeader>
 
@@ -201,31 +223,34 @@ export default function EventsPage() {
             </div>
           ) : (
             <>
-              <div className="py-2">
-                <p className="text-sm font-medium mb-3">Choose how far ahead to search for events:</p>
-                <div className="grid grid-cols-2 gap-3">
-                  <Button
-                    variant="outline"
-                    className="h-auto py-4 flex flex-col items-center gap-1 font-bold uppercase tracking-wide"
-                    onClick={() => populateMutation.mutate("week")}
-                    data-testid="button-populate-week"
-                  >
-                    <span className="text-2xl font-black">7</span>
-                    <span className="text-xs text-muted-foreground">Days Ahead</span>
-                  </Button>
-                  <Button
-                    variant="outline"
-                    className="h-auto py-4 flex flex-col items-center gap-1 font-bold uppercase tracking-wide"
-                    onClick={() => populateMutation.mutate("month")}
-                    data-testid="button-populate-month"
-                  >
-                    <span className="text-2xl font-black">30</span>
-                    <span className="text-xs text-muted-foreground">Days Ahead</span>
-                  </Button>
-                </div>
+              <div className="flex justify-center">
+                <Calendar
+                  mode="range"
+                  selected={dateRange}
+                  onSelect={setDateRange}
+                  numberOfMonths={2}
+                  disabled={{ before: new Date() }}
+                  data-testid="calendar-date-range"
+                />
               </div>
-              <DialogFooter>
-                <p className="text-[10px] text-muted-foreground/60 font-medium">
+
+              {dateRange?.from && dateRange?.to && (
+                <p className="text-center text-sm font-medium text-muted-foreground" data-testid="text-selected-range">
+                  {formatDateShort(dateRange.from)} — {formatDateShort(dateRange.to)}
+                </p>
+              )}
+
+              <DialogFooter className="flex-col gap-2 sm:flex-col">
+                <Button
+                  onClick={handlePopulate}
+                  disabled={!dateRange?.from || !dateRange?.to}
+                  className="w-full font-bold uppercase tracking-wide"
+                  data-testid="button-populate-search"
+                >
+                  <Sparkles className="h-4 w-4 mr-2" />
+                  Search & Populate Events
+                </Button>
+                <p className="text-[10px] text-muted-foreground/60 font-medium text-center">
                   Powered by Perplexity AI web search
                 </p>
               </DialogFooter>

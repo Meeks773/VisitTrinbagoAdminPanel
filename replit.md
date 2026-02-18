@@ -90,7 +90,7 @@ All paginated endpoints return:
 - Uses Replit AI Integrations (OpenAI-compatible, no separate API key needed)
 - `POST /api/ai/generate-listing` - Takes `name` and `category`, returns all fields populated with tourist-friendly content
 - `POST /api/ai/generate-event` - Takes `name` and `eventCategory`, returns all event fields populated with content
-- `POST /api/events/populate` - Takes `timeframe` ("week" or "month"), uses Perplexity AI to search the web for real upcoming T&T events, fetches Pexels images, and bulk-creates events
+- `POST /api/events/populate` - Takes `startDate` and `endDate` (ISO strings), uses Perplexity AI to search the web for real upcoming T&T events, fetches Pexels images, and bulk-creates events
 - Model: gpt-5-mini with JSON response format
 - Category-aware: knows the exact metadata fields for each of the 11 categories
 - Descriptions are written in travel-guide tone with sensory details and local flavor
