@@ -61,6 +61,57 @@ export const insertListingSchema = createInsertSchema(listings).omit({
 export type InsertListing = z.infer<typeof insertListingSchema>;
 export type Listing = typeof listings.$inferSelect;
 
+export const EVENT_CATEGORIES = [
+  "Concert",
+  "Festival",
+  "Exhibition",
+  "Workshop",
+  "Sports",
+  "Cultural",
+  "Food & Drink",
+  "Community",
+  "Conference",
+  "Carnival",
+  "Religious",
+  "Other",
+] as const;
+
+export type EventCategory = (typeof EVENT_CATEGORIES)[number];
+
+export const events = pgTable("events", {
+  id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
+  name: text("name").notNull(),
+  eventCategory: text("event_category").notNull(),
+  interest: text("interest").notNull(),
+  subInterest: text("sub_interest").notNull(),
+  description: text("description").notNull(),
+  startDateTime: text("start_date_time").notNull(),
+  endDateTime: text("end_date_time").notNull(),
+  location: text("location"),
+  latitude: real("latitude"),
+  longitude: real("longitude"),
+  isFreeEvent: boolean("is_free_event").default(true),
+  featuredImage: text("featured_image"),
+  galleryImages: text("gallery_images").array(),
+  videoUrls: text("video_urls").array(),
+  website: text("website"),
+  bookingUrl: text("booking_url"),
+  organizerName: text("organizer_name"),
+  phone: text("phone"),
+  email: text("email"),
+  dressCode: text("dress_code"),
+  rewardPoints: integer("reward_points").default(0),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const insertEventSchema = createInsertSchema(events).omit({
+  id: true,
+  createdAt: true,
+});
+
+export type InsertEvent = z.infer<typeof insertEventSchema>;
+export type Event = typeof events.$inferSelect;
+
 export const users = pgTable("users", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   username: text("username").notNull().unique(),
