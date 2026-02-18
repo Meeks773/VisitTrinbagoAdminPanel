@@ -1,7 +1,7 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
-import { insertListingSchema, CATEGORIES, CATEGORY_LABELS } from "@shared/schema";
+import { insertListingSchema, insertEventSchema, CATEGORIES, CATEGORY_LABELS, EVENT_CATEGORIES } from "@shared/schema";
 import { z } from "zod";
 import { registerObjectStorageRoutes } from "./replit_integrations/object_storage";
 import { ObjectStorageService } from "./replit_integrations/object_storage/objectStorage";
@@ -224,6 +224,72 @@ export async function registerRoutes(
     }
   });
 
+  // ─── Events CRUD ─────────────────────────────────────────────────
+
+  app.get("/api/events", async (_req, res) => {
+    try {
+      const events = await storage.getEvents();
+      res.json(events);
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  app.get("/api/events/:id", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) return res.status(400).json({ message: "Invalid event ID" });
+      const event = await storage.getEvent(id);
+      if (!event) return res.status(404).json({ message: "Event not found" });
+      res.json(event);
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  app.post("/api/events", async (req, res) => {
+    try {
+      const data = insertEventSchema.parse(req.body);
+      const event = await storage.createEvent(data);
+      res.status(201).json(event);
+    } catch (err: any) {
+      if (err instanceof z.ZodError) {
+        return res.status(400).json({ message: err.errors.map(e => e.message).join(", ") });
+      }
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  app.patch("/api/events/:id", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) return res.status(400).json({ message: "Invalid event ID" });
+      const existing = await storage.getEvent(id);
+      if (!existing) return res.status(404).json({ message: "Event not found" });
+      const partialSchema = insertEventSchema.partial();
+      const validData = partialSchema.parse(req.body);
+      const event = await storage.updateEvent(id, validData);
+      res.json(event);
+    } catch (err: any) {
+      if (err instanceof z.ZodError) {
+        return res.status(400).json({ message: err.errors.map(e => e.message).join(", ") });
+      }
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  app.delete("/api/events/:id", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) return res.status(400).json({ message: "Invalid event ID" });
+      const deleted = await storage.deleteEvent(id);
+      if (!deleted) return res.status(404).json({ message: "Event not found" });
+      res.status(204).send();
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
   // ─── AI Content Generation ─────────────────────────────────────
 
   app.post("/api/ai/generate-listing", async (req, res) => {
@@ -327,6 +393,94 @@ Important rules:
     } catch (err: any) {
       console.error("AI generation error:", err);
       res.status(500).json({ message: "Failed to generate content. Please try again." });
+    }
+  });
+
+  app.post("/api/ai/generate-event", async (req, res) => {
+    try {
+      const { name, eventCategory } = req.body;
+
+      if (!name || !eventCategory) {
+        return res.status(400).json({ message: "Name and event category are required" });
+      }
+
+      const prompt = `You are a tourism content writer for Trinidad and Tobago (T&T). Generate content for an event called "${name}" in the "${eventCategory}" category happening in Trinidad and Tobago.
+
+Your response must be valid JSON with these fields:
+{
+  "interest": "broad tourism interest category (e.g. Entertainment, Culture, Music, Food, Sports, Community)",
+  "subInterest": "specific sub-category within ${eventCategory} (e.g. for Concert: Live Band, DJ Set, etc.)",
+  "description": "2-3 paragraph tourist-friendly description. Highlight what makes this event special, what attendees can expect, and why they should attend. Write in travel-guide tone with sensory details and local flavor.",
+  "startDateTime": "ISO datetime string for a plausible upcoming date (e.g. 2026-03-15T19:00)",
+  "endDateTime": "ISO datetime string for event end (e.g. 2026-03-15T23:00)",
+  "location": "full address or venue description in Trinidad and Tobago",
+  "latitude": latitude as a number (approximate coordinates in Trinidad and Tobago, lat range roughly 10.0 to 11.5),
+  "longitude": longitude as a number (approximate coordinates in Trinidad and Tobago, lng range roughly -62.0 to -60.5),
+  "isFreeEvent": true or false,
+  "website": "a plausible website URL or empty string",
+  "bookingUrl": "a plausible booking URL or empty string",
+  "organizerName": "a plausible organizer name",
+  "phone": "a plausible Trinidad phone number like +1 (868) XXX-XXXX or empty string",
+  "email": "a plausible email or empty string",
+  "dressCode": "appropriate dress code for this type of event",
+  "rewardPoints": a suggested reward point value between 10 and 100
+}
+
+Important rules:
+- All content must be specific to Trinidad and Tobago
+- Description should be 2-3 engaging paragraphs written for tourists
+- Start and end times should be realistic for the event type
+- Return ONLY valid JSON, no markdown or extra text`;
+
+      const eventSearchTerms: Record<string, string> = {
+        Concert: "concert music live performance stage",
+        Festival: "caribbean festival celebration outdoor",
+        Exhibition: "art exhibition gallery display",
+        Workshop: "workshop class learning creative",
+        Sports: "sports event competition caribbean",
+        Cultural: "cultural event tradition caribbean heritage",
+        "Food & Drink": "food festival caribbean cuisine tasting",
+        Community: "community gathering event outdoor",
+        Conference: "conference summit business event",
+        Carnival: "carnival parade celebration colorful costume",
+        Religious: "religious celebration ceremony tradition",
+        Other: "special event caribbean gathering",
+      };
+      const searchQuery = `${name} ${eventSearchTerms[eventCategory] || "event caribbean"}`;
+
+      const [aiResponse, pexelsUrls] = await Promise.all([
+        openai.chat.completions.create({
+          model: "gpt-5-mini",
+          messages: [{ role: "user", content: prompt }],
+          response_format: { type: "json_object" },
+          max_completion_tokens: 8192,
+        }),
+        searchPexelsImages(searchQuery, 5),
+      ]);
+
+      const content = aiResponse.choices[0]?.message?.content;
+      if (!content) {
+        return res.status(500).json({ message: "AI did not return content" });
+      }
+
+      const generated = JSON.parse(content);
+
+      if (pexelsUrls.length > 0) {
+        const uploadPromises = pexelsUrls.map((url) => uploadImageFromUrl(url));
+        const uploadedPaths = (await Promise.all(uploadPromises)).filter(
+          (p): p is string => p !== null
+        );
+
+        if (uploadedPaths.length > 0) {
+          generated.featuredImage = uploadedPaths[0];
+          generated.galleryImages = uploadedPaths.slice(1);
+        }
+      }
+
+      res.json(generated);
+    } catch (err: any) {
+      console.error("AI event generation error:", err);
+      res.status(500).json({ message: "Failed to generate event content. Please try again." });
     }
   });
 

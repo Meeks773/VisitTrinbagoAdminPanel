@@ -1,4 +1,4 @@
-import { type Listing, type InsertListing, listings } from "@shared/schema";
+import { type Listing, type InsertListing, listings, type Event, type InsertEvent, events } from "@shared/schema";
 import { db } from "./db";
 import { eq, and, ilike, or, sql, desc, asc } from "drizzle-orm";
 
@@ -33,6 +33,12 @@ export interface IStorage {
   deleteListing(id: number): Promise<boolean>;
   getPublicListings(options: PublicQueryOptions): Promise<PaginatedResult<Listing>>;
   getCategoryCounts(): Promise<Record<string, number>>;
+  getEvents(): Promise<Event[]>;
+  getEvent(id: number): Promise<Event | undefined>;
+  createEvent(data: InsertEvent): Promise<Event>;
+  updateEvent(id: number, data: Partial<InsertEvent>): Promise<Event | undefined>;
+  deleteEvent(id: number): Promise<boolean>;
+  getEventCount(): Promise<number>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -173,6 +179,35 @@ export class DatabaseStorage implements IStorage {
       counts[row.category] = row.count;
     }
     return counts;
+  }
+
+  async getEvents(): Promise<Event[]> {
+    return db.select().from(events).orderBy(desc(events.createdAt));
+  }
+
+  async getEvent(id: number): Promise<Event | undefined> {
+    const [event] = await db.select().from(events).where(eq(events.id, id));
+    return event;
+  }
+
+  async createEvent(data: InsertEvent): Promise<Event> {
+    const [event] = await db.insert(events).values(data as any).returning();
+    return event;
+  }
+
+  async updateEvent(id: number, data: Partial<InsertEvent>): Promise<Event | undefined> {
+    const [event] = await db.update(events).set(data).where(eq(events.id, id)).returning();
+    return event;
+  }
+
+  async deleteEvent(id: number): Promise<boolean> {
+    const result = await db.delete(events).where(eq(events.id, id)).returning();
+    return result.length > 0;
+  }
+
+  async getEventCount(): Promise<number> {
+    const result = await db.select({ count: sql<number>`count(*)::int` }).from(events);
+    return result[0]?.count ?? 0;
   }
 }
 

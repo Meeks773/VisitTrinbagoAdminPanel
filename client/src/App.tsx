@@ -10,6 +10,8 @@ import { ThemeToggle } from "@/components/theme-toggle";
 import Dashboard from "@/pages/dashboard";
 import CategoryPage from "@/pages/category-page";
 import ListingFormPage from "@/pages/listing-form-page";
+import EventsPage from "@/pages/events-page";
+import EventFormPage from "@/pages/event-form-page";
 import NotFound from "@/pages/not-found";
 
 function Router() {
@@ -19,6 +21,9 @@ function Router() {
       <Route path="/category/:category" component={CategoryPage} />
       <Route path="/category/:category/new" component={ListingFormPage} />
       <Route path="/category/:category/edit/:id" component={ListingFormPage} />
+      <Route path="/events" component={EventsPage} />
+      <Route path="/events/new" component={EventFormPage} />
+      <Route path="/events/edit/:id" component={EventFormPage} />
       <Route component={NotFound} />
     </Switch>
   );

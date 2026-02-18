@@ -13,7 +13,7 @@ import {
 } from "@/components/ui/sidebar";
 import { CATEGORIES, CATEGORY_LABELS, type Category } from "@shared/schema";
 import { categoryIcons } from "@/lib/category-config";
-import { LayoutDashboard } from "lucide-react";
+import { LayoutDashboard, Calendar } from "lucide-react";
 
 export function AppSidebar() {
   const [location] = useLocation();
@@ -43,6 +43,21 @@ export function AppSidebar() {
                   <Link href="/" data-testid="link-overview">
                     <LayoutDashboard className="h-4 w-4" />
                     <span className="font-semibold text-sm">Dashboard</span>
+                  </Link>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
+        <SidebarGroup>
+          <SidebarGroupLabel className="text-[10px] font-bold uppercase tracking-[0.15em]">Events</SidebarGroupLabel>
+          <SidebarGroupContent>
+            <SidebarMenu>
+              <SidebarMenuItem>
+                <SidebarMenuButton asChild isActive={location.startsWith("/events")}>
+                  <Link href="/events" data-testid="link-events">
+                    <Calendar className="h-4 w-4" />
+                    <span className="font-semibold text-sm">Event Calendar</span>
                   </Link>
                 </SidebarMenuButton>
               </SidebarMenuItem>

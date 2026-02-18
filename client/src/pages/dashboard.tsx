@@ -4,13 +4,17 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 import { Link } from "wouter";
-import { CATEGORIES, CATEGORY_LABELS, type Category, type Listing } from "@shared/schema";
+import { CATEGORIES, CATEGORY_LABELS, type Category, type Listing, type Event } from "@shared/schema";
 import { categoryIcons } from "@/lib/category-config";
-import { ArrowRight, Layers, TrendingUp } from "lucide-react";
+import { ArrowRight, Layers, TrendingUp, Calendar } from "lucide-react";
 
 export default function Dashboard() {
   const { data: listings, isLoading } = useQuery<Listing[]>({
     queryKey: ["/api/listings"],
+  });
+
+  const { data: events, isLoading: isLoadingEvents } = useQuery<Event[]>({
+    queryKey: ["/api/events"],
   });
 
   const categoryCounts = CATEGORIES.reduce(
@@ -33,7 +37,7 @@ export default function Dashboard() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <Card className="p-0 overflow-hidden">
           <div className="flex">
             <div className="w-1.5 bg-primary shrink-0"></div>
@@ -43,6 +47,19 @@ export default function Dashboard() {
                 <Skeleton className="h-10 w-20 mt-2" />
               ) : (
                 <p className="text-4xl font-black mt-1" data-testid="text-total-listings">{totalListings}</p>
+              )}
+            </div>
+          </div>
+        </Card>
+        <Card className="p-0 overflow-hidden">
+          <div className="flex">
+            <div className="w-1.5 bg-foreground shrink-0"></div>
+            <div className="p-5">
+              <p className="text-[11px] font-bold uppercase tracking-[0.15em] text-muted-foreground">Events</p>
+              {isLoadingEvents ? (
+                <Skeleton className="h-10 w-20 mt-2" />
+              ) : (
+                <p className="text-4xl font-black mt-1" data-testid="text-total-events">{events?.length ?? 0}</p>
               )}
             </div>
           </div>

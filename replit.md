@@ -15,7 +15,9 @@ Admin web application for managing tourism content displayed in the VisitTrinbag
 nightlife, beaches, wellness, festivals, stay, transport, business, tours, eat_drink, attractions, shopping
 
 ## Data Model
-Single `listings` table with common fields (name, interest, subInterest, description, featuredImage, galleryImages, location, lat/lng, website, phone, email, rewardPoints) plus a JSONB `metadata` column for category-specific fields.
+- **listings** table: common fields (name, interest, subInterest, description, featuredImage, galleryImages, location, lat/lng, website, phone, email, rewardPoints) plus a JSONB `metadata` column for category-specific fields.
+- **events** table: event calendar entries with fields (name, eventCategory, interest, subInterest, description, startDateTime, endDateTime, location, lat/lng, isFreeEvent, featuredImage, galleryImages, videoUrls, website, bookingUrl, organizerName, phone, email, dressCode, rewardPoints).
+- Event categories: Concert, Festival, Exhibition, Workshop, Sports, Cultural, Food & Drink, Community, Conference, Carnival, Religious, Other
 
 ## Image Uploads
 - Uses Replit Object Storage (GCS-backed) for image storage
@@ -31,6 +33,13 @@ Single `listings` table with common fields (name, interest, subInterest, descrip
 - `POST /api/listings` - Create listing
 - `PATCH /api/listings/:id` - Update listing
 - `DELETE /api/listings/:id` - Delete listing
+
+## Events Admin API Endpoints
+- `GET /api/events` - List all events
+- `GET /api/events/:id` - Single event
+- `POST /api/events` - Create event
+- `PATCH /api/events/:id` - Update event
+- `DELETE /api/events/:id` - Delete event
 
 ## Public API Endpoints (Mobile App)
 All public endpoints are read-only and require no authentication.
@@ -80,6 +89,7 @@ All paginated endpoints return:
 ## AI Content Generation
 - Uses Replit AI Integrations (OpenAI-compatible, no separate API key needed)
 - `POST /api/ai/generate-listing` - Takes `name` and `category`, returns all fields populated with tourist-friendly content
+- `POST /api/ai/generate-event` - Takes `name` and `eventCategory`, returns all event fields populated with content
 - Model: gpt-5-mini with JSON response format
 - Category-aware: knows the exact metadata fields for each of the 11 categories
 - Descriptions are written in travel-guide tone with sensory details and local flavor
@@ -99,6 +109,10 @@ All paginated endpoints return:
 - `client/src/pages/category-page.tsx` - Category listing page
 - `client/src/pages/listing-form-page.tsx` - Full-page add/edit form (animated)
 - `client/src/pages/dashboard.tsx` - Dashboard overview
+- `client/src/pages/events-page.tsx` - Events list page
+- `client/src/pages/event-form-page.tsx` - Event add/edit form page
+- `client/src/components/event-form.tsx` - Event form component
+- `client/src/components/event-card.tsx` - Event card component
 
 ## Running
 `npm run dev` starts Express + Vite dev server on port 5000.
