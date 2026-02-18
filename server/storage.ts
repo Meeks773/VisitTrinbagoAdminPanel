@@ -25,6 +25,16 @@ export interface PaginatedResult<T> {
   };
 }
 
+export interface PublicEventQueryOptions {
+  eventCategory?: string;
+  search?: string;
+  startDate?: string;
+  endDate?: string;
+  sort?: "name" | "date" | "newest";
+  page?: number;
+  limit?: number;
+}
+
 export interface IStorage {
   getListings(category?: string): Promise<Listing[]>;
   getListing(id: number): Promise<Listing | undefined>;
@@ -39,6 +49,7 @@ export interface IStorage {
   updateEvent(id: number, data: Partial<InsertEvent>): Promise<Event | undefined>;
   deleteEvent(id: number): Promise<boolean>;
   getEventCount(): Promise<number>;
+  getPublicEvents(options: PublicEventQueryOptions): Promise<PaginatedResult<Event>>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -208,6 +219,83 @@ export class DatabaseStorage implements IStorage {
   async getEventCount(): Promise<number> {
     const result = await db.select({ count: sql<number>`count(*)::int` }).from(events);
     return result[0]?.count ?? 0;
+  }
+
+  async getPublicEvents(options: PublicEventQueryOptions): Promise<PaginatedResult<Event>> {
+    const {
+      eventCategory,
+      search,
+      startDate,
+      endDate,
+      sort = "date",
+      page = 1,
+      limit = 20,
+    } = options;
+
+    const conditions: any[] = [];
+
+    if (eventCategory) {
+      conditions.push(eq(events.eventCategory, eventCategory));
+    }
+
+    if (search) {
+      conditions.push(
+        or(
+          ilike(events.name, `%${search}%`),
+          ilike(events.description, `%${search}%`),
+          ilike(events.location, `%${search}%`),
+          ilike(events.organizerName, `%${search}%`)
+        )!
+      );
+    }
+
+    if (startDate) {
+      conditions.push(sql`${events.startDateTime} >= ${startDate}`);
+    }
+
+    if (endDate) {
+      conditions.push(sql`${events.startDateTime} <= ${endDate}`);
+    }
+
+    const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
+
+    const countResult = await db
+      .select({ count: sql<number>`count(*)::int` })
+      .from(events)
+      .where(whereClause);
+    const total = countResult[0]?.count ?? 0;
+
+    let orderClause;
+    if (sort === "name") {
+      orderClause = asc(events.name);
+    } else if (sort === "date") {
+      orderClause = asc(events.startDateTime);
+    } else {
+      orderClause = desc(events.createdAt);
+    }
+
+    const offset = (page - 1) * limit;
+
+    const results = await db
+      .select()
+      .from(events)
+      .where(whereClause)
+      .orderBy(orderClause)
+      .limit(limit)
+      .offset(offset);
+
+    const totalPages = Math.ceil(total / limit);
+
+    return {
+      data: results,
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages,
+        hasMore: page < totalPages,
+      },
+    };
   }
 }
 

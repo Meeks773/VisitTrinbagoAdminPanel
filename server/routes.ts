@@ -774,5 +774,51 @@ Return your answer as a JSON array of event objects. Return ONLY the JSON array,
     }
   });
 
+  // ─── Public Events API for Mobile App ────────────────────────────
+
+  app.get("/api/public/events", async (req, res) => {
+    try {
+      const options = {
+        eventCategory: req.query.eventCategory as string | undefined,
+        search: req.query.search as string | undefined,
+        startDate: req.query.startDate as string | undefined,
+        endDate: req.query.endDate as string | undefined,
+        sort: (req.query.sort as "name" | "date" | "newest") || undefined,
+        page: req.query.page ? parseInt(req.query.page as string) : undefined,
+        limit: req.query.limit ? Math.min(parseInt(req.query.limit as string), 100) : undefined,
+      };
+
+      const result = await storage.getPublicEvents(options);
+      res.json(result);
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  app.get("/api/public/events/:id", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) {
+        return res.status(400).json({ message: "Invalid event ID" });
+      }
+      const event = await storage.getEvent(id);
+      if (!event) {
+        return res.status(404).json({ message: "Event not found" });
+      }
+      res.json({ data: event });
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  app.get("/api/public/events/categories/list", async (_req, res) => {
+    try {
+      const { EVENT_CATEGORIES } = await import("@shared/schema");
+      res.json({ data: EVENT_CATEGORIES });
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
   return httpServer;
 }

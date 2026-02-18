@@ -71,6 +71,22 @@ All public endpoints are read-only and require no authentication.
   - `category` - optional category filter
   - `page` and `limit` supported
 
+### Events (paginated, filterable, sortable)
+- `GET /api/public/events` - Browse events with query params:
+  - `eventCategory` - Filter by event category (e.g. Concert, Festival, Carnival)
+  - `search` - Search by name, description, location, organizer
+  - `startDate` - Filter events starting on or after this ISO date
+  - `endDate` - Filter events starting on or before this ISO date
+  - `sort` - Sort by: name, date (default, chronological), newest
+  - `page` - Page number (default: 1)
+  - `limit` - Items per page (default: 20, max: 100)
+
+### Single Event
+- `GET /api/public/events/:id` - Get full event details
+
+### Event Categories
+- `GET /api/public/events/categories/list` - List all event category names
+
 ### Response Format
 All paginated endpoints return:
 ```json
