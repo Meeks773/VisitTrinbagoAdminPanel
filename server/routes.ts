@@ -523,7 +523,7 @@ For each event, provide ALL of the following details (use real, accurate informa
 - latitude: approximate latitude (Trinidad range: 10.0-10.7, Tobago range: 11.1-11.35)
 - longitude: approximate longitude (Trinidad range: -61.9 to -60.9, Tobago range: -60.9 to -60.5)
 - isFreeEvent: true or false
-- website: official website URL if available, or empty string
+- website: the source URL where you found this event information (the actual web page link). This is required.
 - bookingUrl: ticket/booking URL if available, or empty string
 - organizerName: organizer or venue name
 - phone: contact phone in format +1 (868) XXX-XXXX, or empty string
@@ -589,6 +589,7 @@ Return your answer as a JSON array of event objects. Return ONLY the JSON array,
         return res.status(502).json({ message: "Could not parse event data from Perplexity. Please try again." });
       }
 
+      const citations: string[] = perplexityData.citations || [];
       const createdEvents: any[] = [];
       const errors: string[] = [];
 
@@ -640,7 +641,7 @@ Return your answer as a JSON array of event objects. Return ONLY the JSON array,
             featuredImage,
             galleryImages: galleryImages.length > 0 ? galleryImages : null,
             videoUrls: null,
-            website: eventData.website ? String(eventData.website) : null,
+            website: eventData.website ? String(eventData.website) : (citations.length > 0 ? citations[0] : null),
             bookingUrl: eventData.bookingUrl ? String(eventData.bookingUrl) : null,
             organizerName: eventData.organizerName ? String(eventData.organizerName) : null,
             phone: eventData.phone ? String(eventData.phone) : null,
