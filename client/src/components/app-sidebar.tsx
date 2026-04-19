@@ -16,7 +16,7 @@ import { categoryIcons } from "@/lib/category-config";
 import { LayoutDashboard, Calendar, BarChart3, LogOut } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/hooks/use-auth";
-import logoUrl from "@assets/visitTrinbago_1776640364814.png";
+import logoUrl from "@assets/visit-trinbago-white_1776640806181.png";
 
 export function AppSidebar() {
   const [location] = useLocation();
