@@ -12,6 +12,7 @@ import CategoryPage from "@/pages/category-page";
 import ListingFormPage from "@/pages/listing-form-page";
 import EventsPage from "@/pages/events-page";
 import EventFormPage from "@/pages/event-form-page";
+import AnalyticsPage from "@/pages/analytics-page";
 import NotFound from "@/pages/not-found";
 
 function Router() {
@@ -24,6 +25,7 @@ function Router() {
       <Route path="/events" component={EventsPage} />
       <Route path="/events/new" component={EventFormPage} />
       <Route path="/events/edit/:id" component={EventFormPage} />
+      <Route path="/analytics" component={AnalyticsPage} />
       <Route component={NotFound} />
     </Switch>
   );

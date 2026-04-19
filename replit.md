@@ -116,6 +116,12 @@ All paginated endpoints return:
 - Integration files in server/replit_integrations/ (chat, audio, image, batch utilities)
 - Requires PEXELS_API_KEY secret for image search (free at pexels.com/api)
 
+## Analytics
+- Admin-only analytics page at `/analytics` summarizes content inventory from existing data (no usage tracking yet)
+- `GET /api/analytics` returns: totals (listings, events, upcoming/past, free/paid, reward points + averages), listings by category, events by category, data quality (missing website/phone/coords/featured image/gallery, short descriptions), geographic split (Trinidad vs Tobago by latitude ≥11.0), top reward listings/events, content created over last 12 months, upcoming events grouped by week (next 12 weeks), and top organizers
+- Frontend uses recharts for line/bar/pie charts; computed via single `storage.getAnalytics()` aggregation
+- Sidebar link "Analytics" sits under Overview group, page file at `client/src/pages/analytics-page.tsx`
+
 ## Key Files
 - `shared/schema.ts` - Database schema & types
 - `server/routes.ts` - API routes (admin + public)

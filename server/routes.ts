@@ -670,6 +670,15 @@ Return your answer as a JSON array of event objects. Return ONLY the JSON array,
     }
   });
 
+  app.get("/api/analytics", async (_req, res) => {
+    try {
+      const data = await storage.getAnalytics();
+      res.json(data);
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
   // ─── Public API for Mobile App ───────────────────────────────────
 
   app.get("/api/public/categories", async (_req, res) => {

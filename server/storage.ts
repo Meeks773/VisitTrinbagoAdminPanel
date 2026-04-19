@@ -35,6 +35,43 @@ export interface PublicEventQueryOptions {
   limit?: number;
 }
 
+export interface AnalyticsData {
+  totals: {
+    listings: number;
+    events: number;
+    upcomingEvents: number;
+    pastEvents: number;
+    freeEvents: number;
+    paidEvents: number;
+    listingRewardPoints: number;
+    eventRewardPoints: number;
+    avgListingRewardPoints: number;
+    avgEventRewardPoints: number;
+  };
+  listingsByCategory: { category: string; count: number; rewardTotal: number; rewardAvg: number }[];
+  eventsByCategory: { category: string; count: number }[];
+  dataQuality: {
+    listingsTotal: number;
+    missingWebsite: number;
+    missingPhone: number;
+    missingCoordinates: number;
+    missingFeaturedImage: number;
+    missingGallery: number;
+    shortDescription: number;
+  };
+  geographic: {
+    trinidad: number;
+    tobago: number;
+    unknown: number;
+  };
+  topRewardListings: { id: number; name: string; category: string; rewardPoints: number }[];
+  topRewardEvents: { id: number; name: string; eventCategory: string; rewardPoints: number; startDateTime: string }[];
+  listingsCreatedByMonth: { month: string; count: number }[];
+  eventsCreatedByMonth: { month: string; count: number }[];
+  upcomingEventsByWeek: { weekStart: string; count: number }[];
+  topOrganizers: { name: string; count: number }[];
+}
+
 export interface IStorage {
   getListings(category?: string): Promise<Listing[]>;
   getListing(id: number): Promise<Listing | undefined>;
@@ -50,6 +87,7 @@ export interface IStorage {
   deleteEvent(id: number): Promise<boolean>;
   getEventCount(): Promise<number>;
   getPublicEvents(options: PublicEventQueryOptions): Promise<PaginatedResult<Event>>;
+  getAnalytics(): Promise<AnalyticsData>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -295,6 +333,173 @@ export class DatabaseStorage implements IStorage {
         totalPages,
         hasMore: page < totalPages,
       },
+    };
+  }
+
+  async getAnalytics(): Promise<AnalyticsData> {
+    const allListings = await db.select().from(listings);
+    const allEvents = await db.select().from(events);
+
+    const nowIso = new Date().toISOString();
+
+    const upcomingEvents = allEvents.filter((e) => e.startDateTime >= nowIso);
+    const pastEvents = allEvents.filter((e) => e.startDateTime < nowIso);
+    const freeEvents = allEvents.filter((e) => e.isFreeEvent === true);
+    const paidEvents = allEvents.filter((e) => e.isFreeEvent === false);
+
+    const listingPoints = allListings.reduce((s, l) => s + (l.rewardPoints ?? 0), 0);
+    const eventPoints = allEvents.reduce((s, e) => s + (e.rewardPoints ?? 0), 0);
+
+    const byCategoryMap = new Map<string, { count: number; rewardTotal: number }>();
+    for (const l of allListings) {
+      const entry = byCategoryMap.get(l.category) ?? { count: 0, rewardTotal: 0 };
+      entry.count += 1;
+      entry.rewardTotal += l.rewardPoints ?? 0;
+      byCategoryMap.set(l.category, entry);
+    }
+    const listingsByCategory = Array.from(byCategoryMap.entries())
+      .map(([category, v]) => ({
+        category,
+        count: v.count,
+        rewardTotal: v.rewardTotal,
+        rewardAvg: v.count > 0 ? Math.round(v.rewardTotal / v.count) : 0,
+      }))
+      .sort((a, b) => b.count - a.count);
+
+    const eventCatMap = new Map<string, number>();
+    for (const e of allEvents) {
+      eventCatMap.set(e.eventCategory, (eventCatMap.get(e.eventCategory) ?? 0) + 1);
+    }
+    const eventsByCategory = Array.from(eventCatMap.entries())
+      .map(([category, count]) => ({ category, count }))
+      .sort((a, b) => b.count - a.count);
+
+    const dataQuality = {
+      listingsTotal: allListings.length,
+      missingWebsite: allListings.filter((l) => !l.website).length,
+      missingPhone: allListings.filter((l) => !l.phone).length,
+      missingCoordinates: allListings.filter((l) => l.latitude == null || l.longitude == null).length,
+      missingFeaturedImage: allListings.filter((l) => !l.featuredImage).length,
+      missingGallery: allListings.filter((l) => !l.galleryImages || l.galleryImages.length === 0).length,
+      shortDescription: allListings.filter((l) => (l.description?.length ?? 0) < 80).length,
+    };
+
+    let trinidad = 0;
+    let tobago = 0;
+    let unknown = 0;
+    for (const l of allListings) {
+      if (l.latitude == null || l.longitude == null) {
+        unknown += 1;
+      } else if (l.latitude >= 11.0) {
+        tobago += 1;
+      } else {
+        trinidad += 1;
+      }
+    }
+
+    const topRewardListings = [...allListings]
+      .sort((a, b) => (b.rewardPoints ?? 0) - (a.rewardPoints ?? 0))
+      .slice(0, 10)
+      .map((l) => ({
+        id: l.id,
+        name: l.name,
+        category: l.category,
+        rewardPoints: l.rewardPoints ?? 0,
+      }));
+
+    const topRewardEvents = [...allEvents]
+      .sort((a, b) => (b.rewardPoints ?? 0) - (a.rewardPoints ?? 0))
+      .slice(0, 10)
+      .map((e) => ({
+        id: e.id,
+        name: e.name,
+        eventCategory: e.eventCategory,
+        rewardPoints: e.rewardPoints ?? 0,
+        startDateTime: e.startDateTime,
+      }));
+
+    const monthKey = (d: Date) =>
+      `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}`;
+
+    const months: string[] = [];
+    const nowDate = new Date();
+    for (let i = 11; i >= 0; i--) {
+      const d = new Date(Date.UTC(nowDate.getUTCFullYear(), nowDate.getUTCMonth() - i, 1));
+      months.push(monthKey(d));
+    }
+
+    const listingMonthMap = new Map<string, number>(months.map((m) => [m, 0]));
+    for (const l of allListings) {
+      if (!l.createdAt) continue;
+      const k = monthKey(new Date(l.createdAt));
+      if (listingMonthMap.has(k)) listingMonthMap.set(k, (listingMonthMap.get(k) ?? 0) + 1);
+    }
+    const listingsCreatedByMonth = months.map((m) => ({ month: m, count: listingMonthMap.get(m) ?? 0 }));
+
+    const eventMonthMap = new Map<string, number>(months.map((m) => [m, 0]));
+    for (const e of allEvents) {
+      if (!e.createdAt) continue;
+      const k = monthKey(new Date(e.createdAt));
+      if (eventMonthMap.has(k)) eventMonthMap.set(k, (eventMonthMap.get(k) ?? 0) + 1);
+    }
+    const eventsCreatedByMonth = months.map((m) => ({ month: m, count: eventMonthMap.get(m) ?? 0 }));
+
+    const startOfWeek = (d: Date) => {
+      const out = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()));
+      const day = out.getUTCDay();
+      out.setUTCDate(out.getUTCDate() - day);
+      return out;
+    };
+    const weekKey = (d: Date) => startOfWeek(d).toISOString().slice(0, 10);
+
+    const weeks: string[] = [];
+    const baseWeek = startOfWeek(nowDate);
+    for (let i = 0; i < 12; i++) {
+      const w = new Date(baseWeek);
+      w.setUTCDate(w.getUTCDate() + i * 7);
+      weeks.push(w.toISOString().slice(0, 10));
+    }
+    const weekMap = new Map<string, number>(weeks.map((w) => [w, 0]));
+    for (const e of upcomingEvents) {
+      const k = weekKey(new Date(e.startDateTime));
+      if (weekMap.has(k)) weekMap.set(k, (weekMap.get(k) ?? 0) + 1);
+    }
+    const upcomingEventsByWeek = weeks.map((w) => ({ weekStart: w, count: weekMap.get(w) ?? 0 }));
+
+    const organizerMap = new Map<string, number>();
+    for (const e of allEvents) {
+      const name = e.organizerName?.trim();
+      if (!name) continue;
+      organizerMap.set(name, (organizerMap.get(name) ?? 0) + 1);
+    }
+    const topOrganizers = Array.from(organizerMap.entries())
+      .map(([name, count]) => ({ name, count }))
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 10);
+
+    return {
+      totals: {
+        listings: allListings.length,
+        events: allEvents.length,
+        upcomingEvents: upcomingEvents.length,
+        pastEvents: pastEvents.length,
+        freeEvents: freeEvents.length,
+        paidEvents: paidEvents.length,
+        listingRewardPoints: listingPoints,
+        eventRewardPoints: eventPoints,
+        avgListingRewardPoints: allListings.length > 0 ? Math.round(listingPoints / allListings.length) : 0,
+        avgEventRewardPoints: allEvents.length > 0 ? Math.round(eventPoints / allEvents.length) : 0,
+      },
+      listingsByCategory,
+      eventsByCategory,
+      dataQuality,
+      geographic: { trinidad, tobago, unknown },
+      topRewardListings,
+      topRewardEvents,
+      listingsCreatedByMonth,
+      eventsCreatedByMonth,
+      upcomingEventsByWeek,
+      topOrganizers,
     };
   }
 }

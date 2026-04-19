@@ -13,7 +13,7 @@ import {
 } from "@/components/ui/sidebar";
 import { CATEGORIES, CATEGORY_LABELS, type Category } from "@shared/schema";
 import { categoryIcons } from "@/lib/category-config";
-import { LayoutDashboard, Calendar } from "lucide-react";
+import { LayoutDashboard, Calendar, BarChart3 } from "lucide-react";
 
 export function AppSidebar() {
   const [location] = useLocation();
@@ -43,6 +43,14 @@ export function AppSidebar() {
                   <Link href="/" data-testid="link-overview">
                     <LayoutDashboard className="h-4 w-4" />
                     <span className="font-semibold text-sm">Dashboard</span>
+                  </Link>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+              <SidebarMenuItem>
+                <SidebarMenuButton asChild isActive={location === "/analytics"}>
+                  <Link href="/analytics" data-testid="link-analytics">
+                    <BarChart3 className="h-4 w-4" />
+                    <span className="font-semibold text-sm">Analytics</span>
                   </Link>
                 </SidebarMenuButton>
               </SidebarMenuItem>
