@@ -7,6 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Card } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
 import { Loader2 } from "lucide-react";
+import logoUrl from "@assets/visitTrinbago_1776640364814.png";
 
 export default function LoginPage() {
   const [, setLocation] = useLocation();
@@ -36,14 +37,16 @@ export default function LoginPage() {
   return (
     <div className="min-h-screen w-full flex items-center justify-center bg-background p-6">
       <div className="w-full max-w-md">
-        <div className="flex items-center gap-3 mb-8 justify-center">
-          <div className="w-12 h-12 rounded-md bg-primary flex items-center justify-center text-primary-foreground font-black text-2xl">
-            V
-          </div>
-          <div>
-            <p className="text-xs font-bold uppercase tracking-[0.2em] text-primary">VisitTrinbago</p>
-            <p className="text-lg font-black uppercase tracking-tight">Content Manager</p>
-          </div>
+        <div className="flex flex-col items-center gap-3 mb-8">
+          <img
+            src={logoUrl}
+            alt="#visitTrinbago"
+            className="w-full max-w-[260px] h-auto"
+            data-testid="img-login-logo"
+          />
+          <p className="text-[11px] font-bold uppercase tracking-[0.25em] text-muted-foreground">
+            Content Manager
+          </p>
         </div>
 
         <Card className="p-6 md:p-8 border-2">

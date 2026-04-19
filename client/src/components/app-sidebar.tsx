@@ -16,6 +16,7 @@ import { categoryIcons } from "@/lib/category-config";
 import { LayoutDashboard, Calendar, BarChart3, LogOut } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/hooks/use-auth";
+import logoUrl from "@assets/visitTrinbago_1776640364814.png";
 
 export function AppSidebar() {
   const [location] = useLocation();
@@ -25,14 +26,16 @@ export function AppSidebar() {
     <Sidebar>
       <SidebarHeader className="p-5 pb-6 border-b border-sidebar-border">
         <Link href="/">
-          <div className="flex items-center gap-3 cursor-pointer" data-testid="link-dashboard">
-            <div className="flex items-center justify-center w-10 h-10 rounded-md bg-primary">
-              <span className="text-primary-foreground font-black text-lg">V</span>
-            </div>
-            <div>
-              <h2 className="text-base font-extrabold tracking-tight uppercase">VisitTrinbago</h2>
-              <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-sidebar-accent-foreground/60">Content Manager</p>
-            </div>
+          <div className="cursor-pointer space-y-2" data-testid="link-dashboard">
+            <img
+              src={logoUrl}
+              alt="#visitTrinbago"
+              className="w-full max-w-[180px] h-auto dark:invert-0"
+              data-testid="img-logo"
+            />
+            <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-sidebar-accent-foreground/60">
+              Content Manager
+            </p>
           </div>
         </Link>
       </SidebarHeader>
