@@ -144,5 +144,15 @@ All paginated endpoints return:
 - `client/src/components/event-form.tsx` - Event form component
 - `client/src/components/event-card.tsx` - Event card component
 
+## Authentication
+- Single hardcoded admin: `ttl@visittrinbago.com` / `ttl2025-2026` (defined in `server/auth.ts`)
+- Session-based using `express-session` + `connect-pg-simple` (PostgreSQL store, table `user_sessions` auto-created)
+- Cookie: httpOnly, sameSite=lax, 30 day max age, `secure` only in production
+- Endpoints: `POST /api/auth/login`, `POST /api/auth/logout`, `GET /api/auth/me`
+- `requireAuth` middleware is mounted at `/api` and gates everything **except** `/api/auth/*` and `/api/public/*`
+- `/objects/*` (image serving) stays public so the mobile app can load images
+- Frontend: `AuthProvider` (`client/src/hooks/use-auth.tsx`) loads `/api/auth/me` on boot, `AuthGate` in `App.tsx` redirects unauthenticated users to `/login`, sidebar footer shows current user + Sign Out button
+- Login page at `/login` (`client/src/pages/login-page.tsx`)
+
 ## Running
 `npm run dev` starts Express + Vite dev server on port 5000.

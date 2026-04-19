@@ -7,6 +7,7 @@ import { z } from "zod";
 import { registerObjectStorageRoutes } from "./replit_integrations/object_storage";
 import { ObjectStorageService } from "./replit_integrations/object_storage/objectStorage";
 import OpenAI from "openai";
+import { requireAuth } from "./auth";
 
 const objectStorageService = new ObjectStorageService();
 
@@ -147,6 +148,16 @@ export async function registerRoutes(
   app: Express
 ): Promise<Server> {
   registerObjectStorageRoutes(app);
+
+  app.use("/api", (req, res, next) => {
+    if (
+      req.path.startsWith("/auth") ||
+      req.path.startsWith("/public")
+    ) {
+      return next();
+    }
+    return requireAuth(req, res, next);
+  });
 
   app.get("/api/listings", async (req, res) => {
     try {
