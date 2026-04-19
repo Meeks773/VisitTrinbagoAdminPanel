@@ -117,10 +117,16 @@ All paginated endpoints return:
 - Requires PEXELS_API_KEY secret for image search (free at pexels.com/api)
 
 ## Analytics
-- Admin-only analytics page at `/analytics` summarizes content inventory from existing data (no usage tracking yet)
+- Admin-only analytics page at `/analytics` with two sections: Content (computed from existing data) and Mobile App API Usage (from request logs)
 - `GET /api/analytics` returns: totals (listings, events, upcoming/past, free/paid, reward points + averages), listings by category, events by category, data quality (missing website/phone/coords/featured image/gallery, short descriptions), geographic split (Trinidad vs Tobago by latitude ≥11.0), top reward listings/events, content created over last 12 months, upcoming events grouped by week (next 12 weeks), and top organizers
-- Frontend uses recharts for line/bar/pie charts; computed via single `storage.getAnalytics()` aggregation
-- Sidebar link "Analytics" sits under Overview group, page file at `client/src/pages/analytics-page.tsx`
+- `GET /api/analytics/usage` returns mobile app API traffic: totals (24h/7d/30d, unique IPs, avg response time, error rate), requests-per-day for last 30 days, top routes, most-viewed listings/events, top searches, popular categories/event categories, nearby search hotspots (lat/lng rounded to 2dp). Returns `hasData: false` when log table is empty.
+- Frontend uses recharts for line/bar charts; admin frontend page at `client/src/pages/analytics-page.tsx`
+- Sidebar link "Analytics" sits under Overview group
+
+## Public API Request Logging
+- `api_requests` table logs every `/api/public/*` request (path, normalized routeKey, method, status, category, eventCategory, listingId, eventId, search query, lat/lng, durationMs, ip, userAgent)
+- Logged via Express middleware on `res.on("finish")` — non-blocking, fire-and-forget DB insert
+- Mounted before public routes in `server/routes.ts`; aggregations live in `storage.getUsageAnalytics()`
 
 ## Key Files
 - `shared/schema.ts` - Database schema & types

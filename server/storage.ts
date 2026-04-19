@@ -1,6 +1,6 @@
-import { type Listing, type InsertListing, listings, type Event, type InsertEvent, events } from "@shared/schema";
+import { type Listing, type InsertListing, listings, type Event, type InsertEvent, events, apiRequests } from "@shared/schema";
 import { db } from "./db";
-import { eq, and, ilike, or, sql, desc, asc } from "drizzle-orm";
+import { eq, and, ilike, or, sql, desc, asc, gte } from "drizzle-orm";
 
 export interface PublicQueryOptions {
   category?: string;
@@ -72,6 +72,27 @@ export interface AnalyticsData {
   topOrganizers: { name: string; count: number }[];
 }
 
+export interface UsageAnalytics {
+  totals: {
+    requests: number;
+    requests24h: number;
+    requests7d: number;
+    requests30d: number;
+    uniqueIps30d: number;
+    avgDurationMs: number;
+    errorRate: number;
+  };
+  requestsByDay: { day: string; count: number }[];
+  requestsByRoute: { routeKey: string; count: number; avgDurationMs: number }[];
+  topListings: { listingId: number; name: string; category: string; views: number }[];
+  topEvents: { eventId: number; name: string; eventCategory: string; views: number }[];
+  topSearches: { query: string; count: number }[];
+  topCategoriesQueried: { category: string; count: number }[];
+  topEventCategoriesQueried: { eventCategory: string; count: number }[];
+  nearbyHotspots: { lat: number; lng: number; count: number }[];
+  hasData: boolean;
+}
+
 export interface IStorage {
   getListings(category?: string): Promise<Listing[]>;
   getListing(id: number): Promise<Listing | undefined>;
@@ -88,6 +109,7 @@ export interface IStorage {
   getEventCount(): Promise<number>;
   getPublicEvents(options: PublicEventQueryOptions): Promise<PaginatedResult<Event>>;
   getAnalytics(): Promise<AnalyticsData>;
+  getUsageAnalytics(): Promise<UsageAnalytics>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -500,6 +522,215 @@ export class DatabaseStorage implements IStorage {
       eventsCreatedByMonth,
       upcomingEventsByWeek,
       topOrganizers,
+    };
+  }
+
+  async getUsageAnalytics(): Promise<UsageAnalytics> {
+    const totalRow = await db.select({ count: sql<number>`count(*)::int` }).from(apiRequests);
+    const totalRequests = totalRow[0]?.count ?? 0;
+
+    if (totalRequests === 0) {
+      return {
+        totals: {
+          requests: 0,
+          requests24h: 0,
+          requests7d: 0,
+          requests30d: 0,
+          uniqueIps30d: 0,
+          avgDurationMs: 0,
+          errorRate: 0,
+        },
+        requestsByDay: [],
+        requestsByRoute: [],
+        topListings: [],
+        topEvents: [],
+        topSearches: [],
+        topCategoriesQueried: [],
+        topEventCategoriesQueried: [],
+        nearbyHotspots: [],
+        hasData: false,
+      };
+    }
+
+    const now = new Date();
+    const d1 = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+    const d7 = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+    const d30 = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+
+    const [r24h] = await db
+      .select({ count: sql<number>`count(*)::int` })
+      .from(apiRequests)
+      .where(gte(apiRequests.createdAt, d1));
+    const [r7d] = await db
+      .select({ count: sql<number>`count(*)::int` })
+      .from(apiRequests)
+      .where(gte(apiRequests.createdAt, d7));
+    const [r30d] = await db
+      .select({ count: sql<number>`count(*)::int`, uniqIps: sql<number>`count(distinct ${apiRequests.ip})::int` })
+      .from(apiRequests)
+      .where(gte(apiRequests.createdAt, d30));
+    const [agg] = await db
+      .select({
+        avgDur: sql<number>`coalesce(avg(${apiRequests.durationMs}), 0)::float`,
+        errors: sql<number>`sum(case when ${apiRequests.statusCode} >= 400 then 1 else 0 end)::int`,
+      })
+      .from(apiRequests);
+
+    const byDayRows = await db
+      .select({
+        day: sql<string>`to_char(date_trunc('day', ${apiRequests.createdAt}), 'YYYY-MM-DD')`,
+        count: sql<number>`count(*)::int`,
+      })
+      .from(apiRequests)
+      .where(gte(apiRequests.createdAt, d30))
+      .groupBy(sql`date_trunc('day', ${apiRequests.createdAt})`)
+      .orderBy(sql`date_trunc('day', ${apiRequests.createdAt})`);
+
+    const dayMap = new Map<string, number>();
+    for (const r of byDayRows) dayMap.set(r.day, r.count);
+    const requestsByDay: { day: string; count: number }[] = [];
+    for (let i = 29; i >= 0; i--) {
+      const d = new Date(now.getTime() - i * 24 * 60 * 60 * 1000);
+      const key = d.toISOString().slice(0, 10);
+      requestsByDay.push({ day: key, count: dayMap.get(key) ?? 0 });
+    }
+
+    const byRoute = await db
+      .select({
+        routeKey: apiRequests.routeKey,
+        count: sql<number>`count(*)::int`,
+        avgDurationMs: sql<number>`coalesce(avg(${apiRequests.durationMs}), 0)::float`,
+      })
+      .from(apiRequests)
+      .groupBy(apiRequests.routeKey)
+      .orderBy(desc(sql`count(*)`))
+      .limit(20);
+
+    const topListingRows = await db
+      .select({
+        listingId: apiRequests.listingId,
+        views: sql<number>`count(*)::int`,
+      })
+      .from(apiRequests)
+      .where(sql`${apiRequests.listingId} IS NOT NULL`)
+      .groupBy(apiRequests.listingId)
+      .orderBy(desc(sql`count(*)`))
+      .limit(10);
+
+    const topListings: UsageAnalytics["topListings"] = [];
+    if (topListingRows.length > 0) {
+      const ids = topListingRows.map((r) => r.listingId!).filter((v) => v != null);
+      if (ids.length > 0) {
+        const found = await db
+          .select({ id: listings.id, name: listings.name, category: listings.category })
+          .from(listings)
+          .where(sql`${listings.id} = ANY(${ids})`);
+        const byId = new Map(found.map((l) => [l.id, l]));
+        for (const r of topListingRows) {
+          const l = byId.get(r.listingId!);
+          if (l) topListings.push({ listingId: l.id, name: l.name, category: l.category, views: r.views });
+        }
+      }
+    }
+
+    const topEventRows = await db
+      .select({
+        eventId: apiRequests.eventId,
+        views: sql<number>`count(*)::int`,
+      })
+      .from(apiRequests)
+      .where(sql`${apiRequests.eventId} IS NOT NULL`)
+      .groupBy(apiRequests.eventId)
+      .orderBy(desc(sql`count(*)`))
+      .limit(10);
+
+    const topEvents: UsageAnalytics["topEvents"] = [];
+    if (topEventRows.length > 0) {
+      const ids = topEventRows.map((r) => r.eventId!).filter((v) => v != null);
+      if (ids.length > 0) {
+        const found = await db
+          .select({ id: events.id, name: events.name, eventCategory: events.eventCategory })
+          .from(events)
+          .where(sql`${events.id} = ANY(${ids})`);
+        const byId = new Map(found.map((e) => [e.id, e]));
+        for (const r of topEventRows) {
+          const e = byId.get(r.eventId!);
+          if (e) topEvents.push({ eventId: e.id, name: e.name, eventCategory: e.eventCategory, views: r.views });
+        }
+      }
+    }
+
+    const topSearchRows = await db
+      .select({
+        query: sql<string>`lower(${apiRequests.searchQuery})`,
+        count: sql<number>`count(*)::int`,
+      })
+      .from(apiRequests)
+      .where(sql`${apiRequests.searchQuery} IS NOT NULL AND length(${apiRequests.searchQuery}) > 0`)
+      .groupBy(sql`lower(${apiRequests.searchQuery})`)
+      .orderBy(desc(sql`count(*)`))
+      .limit(10);
+
+    const topCategoryRows = await db
+      .select({
+        category: apiRequests.category,
+        count: sql<number>`count(*)::int`,
+      })
+      .from(apiRequests)
+      .where(sql`${apiRequests.category} IS NOT NULL`)
+      .groupBy(apiRequests.category)
+      .orderBy(desc(sql`count(*)`))
+      .limit(15);
+
+    const topEventCategoryRows = await db
+      .select({
+        eventCategory: apiRequests.eventCategory,
+        count: sql<number>`count(*)::int`,
+      })
+      .from(apiRequests)
+      .where(sql`${apiRequests.eventCategory} IS NOT NULL`)
+      .groupBy(apiRequests.eventCategory)
+      .orderBy(desc(sql`count(*)`))
+      .limit(15);
+
+    const hotspotRows = await db
+      .select({
+        lat: sql<number>`round(${apiRequests.latitude}::numeric, 2)::float`,
+        lng: sql<number>`round(${apiRequests.longitude}::numeric, 2)::float`,
+        count: sql<number>`count(*)::int`,
+      })
+      .from(apiRequests)
+      .where(sql`${apiRequests.latitude} IS NOT NULL AND ${apiRequests.longitude} IS NOT NULL`)
+      .groupBy(
+        sql`round(${apiRequests.latitude}::numeric, 2)`,
+        sql`round(${apiRequests.longitude}::numeric, 2)`,
+      )
+      .orderBy(desc(sql`count(*)`))
+      .limit(20);
+
+    return {
+      totals: {
+        requests: totalRequests,
+        requests24h: r24h?.count ?? 0,
+        requests7d: r7d?.count ?? 0,
+        requests30d: r30d?.count ?? 0,
+        uniqueIps30d: (r30d as any)?.uniqIps ?? 0,
+        avgDurationMs: Math.round((agg?.avgDur ?? 0) * 10) / 10,
+        errorRate: totalRequests > 0 ? Math.round(((agg?.errors ?? 0) / totalRequests) * 1000) / 10 : 0,
+      },
+      requestsByDay,
+      requestsByRoute: byRoute.map((r) => ({
+        routeKey: r.routeKey,
+        count: r.count,
+        avgDurationMs: Math.round(r.avgDurationMs * 10) / 10,
+      })),
+      topListings,
+      topEvents,
+      topSearches: topSearchRows.map((r) => ({ query: r.query, count: r.count })),
+      topCategoriesQueried: topCategoryRows.map((r) => ({ category: r.category!, count: r.count })),
+      topEventCategoriesQueried: topEventCategoryRows.map((r) => ({ eventCategory: r.eventCategory!, count: r.count })),
+      nearbyHotspots: hotspotRows.map((r) => ({ lat: r.lat, lng: r.lng, count: r.count })),
+      hasData: true,
     };
   }
 }

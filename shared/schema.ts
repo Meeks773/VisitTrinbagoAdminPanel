@@ -112,6 +112,27 @@ export const insertEventSchema = createInsertSchema(events).omit({
 export type InsertEvent = z.infer<typeof insertEventSchema>;
 export type Event = typeof events.$inferSelect;
 
+export const apiRequests = pgTable("api_requests", {
+  id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
+  path: text("path").notNull(),
+  routeKey: text("route_key").notNull(),
+  method: text("method").notNull(),
+  statusCode: integer("status_code").notNull(),
+  category: text("category"),
+  eventCategory: text("event_category"),
+  listingId: integer("listing_id"),
+  eventId: integer("event_id"),
+  searchQuery: text("search_query"),
+  latitude: real("latitude"),
+  longitude: real("longitude"),
+  durationMs: integer("duration_ms"),
+  ip: text("ip"),
+  userAgent: text("user_agent"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export type ApiRequest = typeof apiRequests.$inferSelect;
+
 export const users = pgTable("users", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   username: text("username").notNull().unique(),

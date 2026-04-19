@@ -1,7 +1,8 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
-import { insertListingSchema, insertEventSchema, CATEGORIES, CATEGORY_LABELS, EVENT_CATEGORIES } from "@shared/schema";
+import { insertListingSchema, insertEventSchema, CATEGORIES, CATEGORY_LABELS, EVENT_CATEGORIES, apiRequests } from "@shared/schema";
+import { db } from "./db";
 import { z } from "zod";
 import { registerObjectStorageRoutes } from "./replit_integrations/object_storage";
 import { ObjectStorageService } from "./replit_integrations/object_storage/objectStorage";
@@ -679,7 +680,76 @@ Return your answer as a JSON array of event objects. Return ONLY the JSON array,
     }
   });
 
+  app.get("/api/analytics/usage", async (_req, res) => {
+    try {
+      const data = await storage.getUsageAnalytics();
+      res.json(data);
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
   // ─── Public API for Mobile App ───────────────────────────────────
+
+  app.use("/api/public", (req, res, next) => {
+    const startedAt = Date.now();
+    res.on("finish", () => {
+      const path = req.path;
+      let routeKey = `${req.baseUrl}${path}`;
+      let listingId: number | null = null;
+      let eventId: number | null = null;
+
+      const listingMatch = path.match(/^\/listings\/(\d+)$/);
+      const eventMatch = path.match(/^\/events\/(\d+)$/);
+      if (listingMatch) {
+        listingId = parseInt(listingMatch[1]);
+        routeKey = "/api/public/listings/:id";
+      } else if (eventMatch) {
+        eventId = parseInt(eventMatch[1]);
+        routeKey = "/api/public/events/:id";
+      } else if (path === "/categories") {
+        routeKey = "/api/public/categories";
+      } else if (path === "/listings") {
+        routeKey = "/api/public/listings";
+      } else if (path === "/events") {
+        routeKey = "/api/public/events";
+      } else if (path === "/search") {
+        routeKey = "/api/public/search";
+      } else if (path === "/nearby") {
+        routeKey = "/api/public/nearby";
+      } else if (path === "/events/categories/list") {
+        routeKey = "/api/public/events/categories/list";
+      }
+
+      const q = req.query as Record<string, string | undefined>;
+      const lat = q.lat ? parseFloat(q.lat) : null;
+      const lng = q.lng ? parseFloat(q.lng) : null;
+      const search = (q.search ?? q.q ?? null) as string | null;
+      const ip = (req.headers["x-forwarded-for"] as string)?.split(",")[0]?.trim() || req.ip || null;
+      const ua = (req.headers["user-agent"] as string) || null;
+
+      db.insert(apiRequests)
+        .values({
+          path: req.baseUrl + req.path,
+          routeKey,
+          method: req.method,
+          statusCode: res.statusCode,
+          category: (q.category as string) ?? null,
+          eventCategory: (q.eventCategory as string) ?? null,
+          listingId,
+          eventId,
+          searchQuery: search && search.length > 0 ? search.slice(0, 200) : null,
+          latitude: Number.isFinite(lat as number) ? lat : null,
+          longitude: Number.isFinite(lng as number) ? lng : null,
+          durationMs: Date.now() - startedAt,
+          ip,
+          userAgent: ua,
+        })
+        .catch((err) => console.error("api_requests log failed:", err.message));
+    });
+    next();
+  });
+
 
   app.get("/api/public/categories", async (_req, res) => {
     try {

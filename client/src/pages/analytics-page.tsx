@@ -21,6 +21,27 @@ import {
 } from "recharts";
 import { format, parseISO } from "date-fns";
 
+interface UsageData {
+  totals: {
+    requests: number;
+    requests24h: number;
+    requests7d: number;
+    requests30d: number;
+    uniqueIps30d: number;
+    avgDurationMs: number;
+    errorRate: number;
+  };
+  requestsByDay: { day: string; count: number }[];
+  requestsByRoute: { routeKey: string; count: number; avgDurationMs: number }[];
+  topListings: { listingId: number; name: string; category: string; views: number }[];
+  topEvents: { eventId: number; name: string; eventCategory: string; views: number }[];
+  topSearches: { query: string; count: number }[];
+  topCategoriesQueried: { category: string; count: number }[];
+  topEventCategoriesQueried: { eventCategory: string; count: number }[];
+  nearbyHotspots: { lat: number; lng: number; count: number }[];
+  hasData: boolean;
+}
+
 interface AnalyticsData {
   totals: {
     listings: number;
@@ -102,6 +123,9 @@ function QualityRow({ label, missing, total }: { label: string; missing: number;
 export default function AnalyticsPage() {
   const { data, isLoading } = useQuery<AnalyticsData>({
     queryKey: ["/api/analytics"],
+  });
+  const { data: usage } = useQuery<UsageData>({
+    queryKey: ["/api/analytics/usage"],
   });
 
   if (isLoading || !data) {
@@ -372,6 +396,226 @@ export default function AnalyticsPage() {
           </div>
         )}
       </Card>
+
+      <div className="pt-4 border-t-2 border-foreground/10">
+        <p className="text-xs font-bold uppercase tracking-[0.2em] text-primary mb-1">Mobile App</p>
+        <h2 className="text-2xl md:text-3xl font-black tracking-tight uppercase" data-testid="text-usage-title">
+          API Usage
+        </h2>
+        <p className="text-sm text-muted-foreground mt-2 font-medium">
+          Live traffic from the public API. Logging began when this feature was deployed.
+        </p>
+      </div>
+
+      {!usage || !usage.hasData ? (
+        <Card className="p-8 text-center">
+          <p className="text-sm font-semibold text-muted-foreground" data-testid="text-no-usage-data">
+            No public API requests recorded yet. Once the mobile app starts hitting the public endpoints,
+            traffic and popularity stats will appear here.
+          </p>
+        </Card>
+      ) : (
+        <>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <StatCard label="Requests 24h" value={usage.totals.requests24h} />
+            <StatCard label="Requests 7d" value={usage.totals.requests7d} accent="foreground" />
+            <StatCard label="Requests 30d" value={usage.totals.requests30d} />
+            <StatCard label="Total Requests" value={usage.totals.requests} accent="foreground" />
+            <StatCard label="Unique IPs 30d" value={usage.totals.uniqueIps30d} accent="foreground" />
+            <StatCard label="Avg Response" value={`${usage.totals.avgDurationMs} ms`} />
+            <StatCard label="Error Rate" value={`${usage.totals.errorRate}%`} accent="foreground" />
+            <StatCard label="Active Routes" value={usage.requestsByRoute.length} />
+          </div>
+
+          <Card className="p-5">
+            <SectionHeader title="Requests Per Day (last 30 days)" />
+            <div className="h-72" data-testid="chart-requests-per-day">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={usage.requestsByDay.map((d) => ({ ...d, label: format(parseISO(d.day), "MMM d") }))}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                  <XAxis dataKey="label" stroke="hsl(var(--muted-foreground))" fontSize={11} />
+                  <YAxis stroke="hsl(var(--muted-foreground))" fontSize={12} allowDecimals={false} />
+                  <Tooltip contentStyle={{ background: "hsl(var(--popover))", border: "1px solid hsl(var(--border))" }} />
+                  <Bar dataKey="count" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </Card>
+
+          <Card className="p-5">
+            <SectionHeader title="Top Routes" />
+            <div className="space-y-2">
+              {usage.requestsByRoute.map((r) => (
+                <div
+                  key={r.routeKey}
+                  className="flex items-center justify-between gap-3 p-2 rounded-md border"
+                  data-testid={`route-${r.routeKey.replace(/[^a-z0-9]+/gi, "-").toLowerCase()}`}
+                >
+                  <code className="text-xs font-mono truncate">{r.routeKey}</code>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <Badge variant="outline" className="text-[10px] font-semibold">
+                      {r.avgDurationMs} ms
+                    </Badge>
+                    <Badge variant="secondary" className="font-bold">
+                      {r.count.toLocaleString()}
+                    </Badge>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </Card>
+
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <Card className="p-5">
+              <SectionHeader title="Most Viewed Listings" />
+              {usage.topListings.length === 0 ? (
+                <p className="text-sm text-muted-foreground">No listing detail views yet.</p>
+              ) : (
+                <div className="space-y-2">
+                  {usage.topListings.map((l) => (
+                    <div
+                      key={l.listingId}
+                      className="flex items-center justify-between gap-3 p-2 rounded-md border"
+                      data-testid={`viewed-listing-${l.listingId}`}
+                    >
+                      <div className="min-w-0">
+                        <p className="font-bold text-sm truncate">{l.name}</p>
+                        <p className="text-[11px] uppercase tracking-wide text-muted-foreground font-semibold">
+                          {CATEGORY_LABELS[l.category as Category] ?? l.category}
+                        </p>
+                      </div>
+                      <Badge variant="secondary" className="font-bold shrink-0">
+                        {l.views.toLocaleString()} views
+                      </Badge>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </Card>
+
+            <Card className="p-5">
+              <SectionHeader title="Most Viewed Events" />
+              {usage.topEvents.length === 0 ? (
+                <p className="text-sm text-muted-foreground">No event detail views yet.</p>
+              ) : (
+                <div className="space-y-2">
+                  {usage.topEvents.map((e) => (
+                    <div
+                      key={e.eventId}
+                      className="flex items-center justify-between gap-3 p-2 rounded-md border"
+                      data-testid={`viewed-event-${e.eventId}`}
+                    >
+                      <div className="min-w-0">
+                        <p className="font-bold text-sm truncate">{e.name}</p>
+                        <p className="text-[11px] uppercase tracking-wide text-muted-foreground font-semibold">
+                          {e.eventCategory}
+                        </p>
+                      </div>
+                      <Badge variant="secondary" className="font-bold shrink-0">
+                        {e.views.toLocaleString()} views
+                      </Badge>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </Card>
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <Card className="p-5">
+              <SectionHeader title="Top Searches" />
+              {usage.topSearches.length === 0 ? (
+                <p className="text-sm text-muted-foreground">No search queries yet.</p>
+              ) : (
+                <div className="space-y-2">
+                  {usage.topSearches.map((s) => (
+                    <div
+                      key={s.query}
+                      className="flex items-center justify-between gap-3 p-2 rounded-md border"
+                      data-testid={`search-${s.query.replace(/[^a-z0-9]+/gi, "-")}`}
+                    >
+                      <p className="font-semibold text-sm truncate">"{s.query}"</p>
+                      <Badge variant="secondary" className="font-bold shrink-0">
+                        {s.count}
+                      </Badge>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </Card>
+
+            <Card className="p-5">
+              <SectionHeader title="Popular Categories" />
+              {usage.topCategoriesQueried.length === 0 ? (
+                <p className="text-sm text-muted-foreground">No category filters used yet.</p>
+              ) : (
+                <div className="space-y-2">
+                  {usage.topCategoriesQueried.map((c) => (
+                    <div
+                      key={c.category}
+                      className="flex items-center justify-between gap-3 p-2 rounded-md border"
+                      data-testid={`queried-category-${c.category}`}
+                    >
+                      <p className="font-semibold text-sm truncate uppercase tracking-wide">
+                        {CATEGORY_LABELS[c.category as Category] ?? c.category}
+                      </p>
+                      <Badge variant="secondary" className="font-bold shrink-0">
+                        {c.count}
+                      </Badge>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </Card>
+
+            <Card className="p-5">
+              <SectionHeader title="Popular Event Categories" />
+              {usage.topEventCategoriesQueried.length === 0 ? (
+                <p className="text-sm text-muted-foreground">No event category filters yet.</p>
+              ) : (
+                <div className="space-y-2">
+                  {usage.topEventCategoriesQueried.map((c) => (
+                    <div
+                      key={c.eventCategory}
+                      className="flex items-center justify-between gap-3 p-2 rounded-md border"
+                      data-testid={`queried-event-category-${c.eventCategory.replace(/[^a-z0-9]+/gi, "-")}`}
+                    >
+                      <p className="font-semibold text-sm truncate">{c.eventCategory}</p>
+                      <Badge variant="secondary" className="font-bold shrink-0">
+                        {c.count}
+                      </Badge>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </Card>
+          </div>
+
+          <Card className="p-5">
+            <SectionHeader title="Nearby Search Hotspots" />
+            {usage.nearbyHotspots.length === 0 ? (
+              <p className="text-sm text-muted-foreground">No nearby searches recorded yet.</p>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
+                {usage.nearbyHotspots.map((h) => (
+                  <div
+                    key={`${h.lat}-${h.lng}`}
+                    className="flex items-center justify-between gap-3 p-2 rounded-md border"
+                    data-testid={`hotspot-${h.lat}-${h.lng}`}
+                  >
+                    <code className="text-xs font-mono">
+                      {h.lat.toFixed(2)}, {h.lng.toFixed(2)}
+                    </code>
+                    <Badge variant="secondary" className="font-bold shrink-0">
+                      {h.count}
+                    </Badge>
+                  </div>
+                ))}
+              </div>
+            )}
+          </Card>
+        </>
+      )}
     </div>
   );
 }
