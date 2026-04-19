@@ -121,6 +121,7 @@ All paginated endpoints return:
 - `GET /api/analytics` returns: totals (listings, events, upcoming/past, free/paid, reward points + averages), listings by category, events by category, data quality (missing website/phone/coords/featured image/gallery, short descriptions), geographic split (Trinidad vs Tobago by latitude ≥11.0), top reward listings/events, content created over last 12 months, upcoming events grouped by week (next 12 weeks), and top organizers
 - `GET /api/analytics/usage` returns mobile app API traffic: totals (24h/7d/30d, unique IPs, avg response time, error rate), requests-per-day for last 30 days, top routes, most-viewed listings/events, top searches, popular categories/event categories, nearby search hotspots (lat/lng rounded to 2dp). Returns `hasData: false` when log table is empty.
 - Frontend uses recharts for line/bar charts; admin frontend page at `client/src/pages/analytics-page.tsx`
+- Page is organized into 4 tabs: **Overview** (KPI strip + content created + upcoming events + top organizers), **Content** (listings by category, events by category pie, geographic split, free vs paid, top reward listings/events), **Quality** (data completeness progress bars), **API Usage** (mobile traffic from `/api/analytics/usage`)
 - Sidebar link "Analytics" sits under Overview group
 
 ## Public API Request Logging

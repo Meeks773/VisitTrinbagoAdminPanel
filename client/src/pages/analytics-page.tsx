@@ -3,6 +3,7 @@ import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { CATEGORY_LABELS, type Category } from "@shared/schema";
 import {
   BarChart,
@@ -174,29 +175,46 @@ export default function AnalyticsPage() {
   ].filter((d) => d.value > 0);
 
   return (
-    <div className="p-6 md:p-8 space-y-10 max-w-6xl mx-auto">
+    <div className="p-6 md:p-8 space-y-8 max-w-6xl mx-auto">
       <div>
         <p className="text-xs font-bold uppercase tracking-[0.2em] text-primary mb-1">Insights</p>
         <h1 className="text-3xl md:text-4xl font-black tracking-tight uppercase" data-testid="text-analytics-title">
           Analytics
         </h1>
         <p className="text-sm text-muted-foreground mt-2 font-medium">
-          Content inventory, reward economy and calendar density across all categories.
+          Content inventory, reward economy, calendar density and live mobile app traffic.
         </p>
       </div>
 
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <StatCard label="Listings" value={data.totals.listings} />
-        <StatCard label="Events" value={data.totals.events} accent="foreground" />
-        <StatCard label="Upcoming Events" value={data.totals.upcomingEvents} />
-        <StatCard label="Past Events" value={data.totals.pastEvents} accent="foreground" />
-        <StatCard label="Listing Points" value={data.totals.listingRewardPoints} accent="foreground" />
-        <StatCard label="Event Points" value={data.totals.eventRewardPoints} />
-        <StatCard label="Avg Listing Pts" value={data.totals.avgListingRewardPoints} accent="foreground" />
-        <StatCard label="Avg Event Pts" value={data.totals.avgEventRewardPoints} />
-      </div>
+      <Tabs defaultValue="overview" className="space-y-6">
+        <TabsList className="grid grid-cols-2 md:grid-cols-4 w-full md:w-auto">
+          <TabsTrigger value="overview" data-testid="tab-overview" className="font-bold uppercase tracking-wide text-xs">
+            Overview
+          </TabsTrigger>
+          <TabsTrigger value="content" data-testid="tab-content" className="font-bold uppercase tracking-wide text-xs">
+            Content
+          </TabsTrigger>
+          <TabsTrigger value="quality" data-testid="tab-quality" className="font-bold uppercase tracking-wide text-xs">
+            Quality
+          </TabsTrigger>
+          <TabsTrigger value="usage" data-testid="tab-usage" className="font-bold uppercase tracking-wide text-xs">
+            API Usage
+          </TabsTrigger>
+        </TabsList>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <TabsContent value="overview" className="space-y-8 mt-0">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <StatCard label="Listings" value={data.totals.listings} />
+            <StatCard label="Events" value={data.totals.events} accent="foreground" />
+            <StatCard label="Upcoming Events" value={data.totals.upcomingEvents} />
+            <StatCard label="Past Events" value={data.totals.pastEvents} accent="foreground" />
+            <StatCard label="Listing Points" value={data.totals.listingRewardPoints} accent="foreground" />
+            <StatCard label="Event Points" value={data.totals.eventRewardPoints} />
+            <StatCard label="Avg Listing Pts" value={data.totals.avgListingRewardPoints} accent="foreground" />
+            <StatCard label="Avg Event Pts" value={data.totals.avgEventRewardPoints} />
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <Card className="p-5">
           <SectionHeader title="Content Created (12 months)" />
           <div className="h-72" data-testid="chart-content-created">
@@ -228,10 +246,34 @@ export default function AnalyticsPage() {
             </ResponsiveContainer>
           </div>
         </Card>
-      </div>
+          </div>
 
-      <Card className="p-5">
-        <SectionHeader title="Listings by Category" />
+          <Card className="p-5">
+            <SectionHeader title="Top Organizers" />
+            {data.topOrganizers.length === 0 ? (
+              <p className="text-sm text-muted-foreground">No organizers recorded yet.</p>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                {data.topOrganizers.map((o) => (
+                  <div
+                    key={o.name}
+                    className="flex items-center justify-between gap-3 p-2 rounded-md border"
+                    data-testid={`organizer-${o.name.replace(/[^a-z0-9]+/gi, "-").toLowerCase()}`}
+                  >
+                    <p className="font-bold text-sm truncate">{o.name}</p>
+                    <Badge variant="secondary" className="font-bold shrink-0">
+                      {o.count} {o.count === 1 ? "event" : "events"}
+                    </Badge>
+                  </div>
+                ))}
+              </div>
+            )}
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="content" className="space-y-8 mt-0">
+          <Card className="p-5">
+            <SectionHeader title="Listings by Category" />
         <div className="h-80" data-testid="chart-listings-by-category">
           <ResponsiveContainer width="100%" height="100%">
             <BarChart data={listingCatData} layout="vertical" margin={{ left: 20 }}>
@@ -286,42 +328,30 @@ export default function AnalyticsPage() {
           )}
         </Card>
 
-        <Card className="p-5">
-          <SectionHeader title="Free vs Paid Events" />
-          {freePaidData.length === 0 ? (
-            <p className="text-sm text-muted-foreground">No events yet.</p>
-          ) : (
-            <div className="h-64" data-testid="chart-free-paid">
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Pie data={freePaidData} dataKey="value" nameKey="name" outerRadius={80} label={(e: any) => `${e.name}: ${e.value}`}>
-                    {freePaidData.map((_, i) => (
-                      <Cell key={i} fill={CHART_COLORS[i % CHART_COLORS.length]} />
-                    ))}
-                  </Pie>
-                  <Tooltip contentStyle={{ background: "hsl(var(--popover))", border: "1px solid hsl(var(--border))" }} />
-                </PieChart>
-              </ResponsiveContainer>
-            </div>
-          )}
-        </Card>
-      </div>
+            <Card className="p-5">
+              <SectionHeader title="Free vs Paid Events" />
+              {freePaidData.length === 0 ? (
+                <p className="text-sm text-muted-foreground">No events yet.</p>
+              ) : (
+                <div className="h-64" data-testid="chart-free-paid">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <PieChart>
+                      <Pie data={freePaidData} dataKey="value" nameKey="name" outerRadius={80} label={(e: any) => `${e.name}: ${e.value}`}>
+                        {freePaidData.map((_, i) => (
+                          <Cell key={i} fill={CHART_COLORS[i % CHART_COLORS.length]} />
+                        ))}
+                      </Pie>
+                      <Tooltip contentStyle={{ background: "hsl(var(--popover))", border: "1px solid hsl(var(--border))" }} />
+                    </PieChart>
+                  </ResponsiveContainer>
+                </div>
+              )}
+            </Card>
+          </div>
 
-      <Card className="p-5">
-        <SectionHeader title="Listing Data Quality" />
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-4">
-          <QualityRow label="Has Website" missing={data.dataQuality.missingWebsite} total={data.dataQuality.listingsTotal} />
-          <QualityRow label="Has Phone" missing={data.dataQuality.missingPhone} total={data.dataQuality.listingsTotal} />
-          <QualityRow label="Has Coordinates" missing={data.dataQuality.missingCoordinates} total={data.dataQuality.listingsTotal} />
-          <QualityRow label="Has Featured Image" missing={data.dataQuality.missingFeaturedImage} total={data.dataQuality.listingsTotal} />
-          <QualityRow label="Has Gallery" missing={data.dataQuality.missingGallery} total={data.dataQuality.listingsTotal} />
-          <QualityRow label="Description ≥80 chars" missing={data.dataQuality.shortDescription} total={data.dataQuality.listingsTotal} />
-        </div>
-      </Card>
-
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <Card className="p-5">
-          <SectionHeader title="Top Reward Listings" />
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <Card className="p-5">
+              <SectionHeader title="Top Reward Listings" />
           {data.topRewardListings.length === 0 ? (
             <p className="text-sm text-muted-foreground">No listings yet.</p>
           ) : (
@@ -347,76 +377,63 @@ export default function AnalyticsPage() {
           )}
         </Card>
 
-        <Card className="p-5">
-          <SectionHeader title="Top Reward Events" />
-          {data.topRewardEvents.length === 0 ? (
-            <p className="text-sm text-muted-foreground">No events yet.</p>
-          ) : (
-            <div className="space-y-2">
-              {data.topRewardEvents.map((e) => (
-                <div
-                  key={e.id}
-                  className="flex items-center justify-between gap-3 p-2 rounded-md border"
-                  data-testid={`top-event-${e.id}`}
-                >
-                  <div className="min-w-0">
-                    <p className="font-bold text-sm truncate">{e.name}</p>
-                    <p className="text-[11px] uppercase tracking-wide text-muted-foreground font-semibold">
-                      {e.eventCategory} · {format(new Date(e.startDateTime), "MMM d, yyyy")}
-                    </p>
-                  </div>
-                  <Badge variant="secondary" className="font-bold shrink-0">
-                    {e.rewardPoints} pts
-                  </Badge>
+            <Card className="p-5">
+              <SectionHeader title="Top Reward Events" />
+              {data.topRewardEvents.length === 0 ? (
+                <p className="text-sm text-muted-foreground">No events yet.</p>
+              ) : (
+                <div className="space-y-2">
+                  {data.topRewardEvents.map((e) => (
+                    <div
+                      key={e.id}
+                      className="flex items-center justify-between gap-3 p-2 rounded-md border"
+                      data-testid={`top-event-${e.id}`}
+                    >
+                      <div className="min-w-0">
+                        <p className="font-bold text-sm truncate">{e.name}</p>
+                        <p className="text-[11px] uppercase tracking-wide text-muted-foreground font-semibold">
+                          {e.eventCategory} · {format(new Date(e.startDateTime), "MMM d, yyyy")}
+                        </p>
+                      </div>
+                      <Badge variant="secondary" className="font-bold shrink-0">
+                        {e.rewardPoints} pts
+                      </Badge>
+                    </div>
+                  ))}
                 </div>
-              ))}
-            </div>
-          )}
-        </Card>
-      </div>
-
-      <Card className="p-5">
-        <SectionHeader title="Top Organizers" />
-        {data.topOrganizers.length === 0 ? (
-          <p className="text-sm text-muted-foreground">No organizers recorded yet.</p>
-        ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-            {data.topOrganizers.map((o) => (
-              <div
-                key={o.name}
-                className="flex items-center justify-between gap-3 p-2 rounded-md border"
-                data-testid={`organizer-${o.name.replace(/[^a-z0-9]+/gi, "-").toLowerCase()}`}
-              >
-                <p className="font-bold text-sm truncate">{o.name}</p>
-                <Badge variant="secondary" className="font-bold shrink-0">
-                  {o.count} {o.count === 1 ? "event" : "events"}
-                </Badge>
-              </div>
-            ))}
+              )}
+            </Card>
           </div>
-        )}
-      </Card>
+        </TabsContent>
 
-      <div className="pt-4 border-t-2 border-foreground/10">
-        <p className="text-xs font-bold uppercase tracking-[0.2em] text-primary mb-1">Mobile App</p>
-        <h2 className="text-2xl md:text-3xl font-black tracking-tight uppercase" data-testid="text-usage-title">
-          API Usage
-        </h2>
-        <p className="text-sm text-muted-foreground mt-2 font-medium">
-          Live traffic from the public API. Logging began when this feature was deployed.
-        </p>
-      </div>
+        <TabsContent value="quality" className="space-y-6 mt-0">
+          <Card className="p-5">
+            <SectionHeader title="Listing Data Quality" />
+            <p className="text-xs text-muted-foreground font-medium mb-4">
+              Completeness across all {data.dataQuality.listingsTotal} listings.
+            </p>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-4">
+              <QualityRow label="Has Website" missing={data.dataQuality.missingWebsite} total={data.dataQuality.listingsTotal} />
+              <QualityRow label="Has Phone" missing={data.dataQuality.missingPhone} total={data.dataQuality.listingsTotal} />
+              <QualityRow label="Has Coordinates" missing={data.dataQuality.missingCoordinates} total={data.dataQuality.listingsTotal} />
+              <QualityRow label="Has Featured Image" missing={data.dataQuality.missingFeaturedImage} total={data.dataQuality.listingsTotal} />
+              <QualityRow label="Has Gallery" missing={data.dataQuality.missingGallery} total={data.dataQuality.listingsTotal} />
+              <QualityRow label="Description ≥80 chars" missing={data.dataQuality.shortDescription} total={data.dataQuality.listingsTotal} />
+            </div>
+          </Card>
+        </TabsContent>
 
-      {!usage || !usage.hasData ? (
-        <Card className="p-8 text-center">
-          <p className="text-sm font-semibold text-muted-foreground" data-testid="text-no-usage-data">
-            No public API requests recorded yet. Once the mobile app starts hitting the public endpoints,
-            traffic and popularity stats will appear here.
-          </p>
-        </Card>
-      ) : (
-        <>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <TabsContent value="usage" className="space-y-8 mt-0">
+          {!usage || !usage.hasData ? (
+            <Card className="p-8 text-center">
+              <p className="text-sm font-semibold text-muted-foreground" data-testid="text-no-usage-data">
+                No public API requests recorded yet. Once the mobile app starts hitting the public endpoints,
+                traffic and popularity stats will appear here.
+              </p>
+            </Card>
+          ) : (
+            <>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             <StatCard label="Requests 24h" value={usage.totals.requests24h} />
             <StatCard label="Requests 7d" value={usage.totals.requests7d} accent="foreground" />
             <StatCard label="Requests 30d" value={usage.totals.requests30d} />
@@ -614,8 +631,10 @@ export default function AnalyticsPage() {
               </div>
             )}
           </Card>
-        </>
-      )}
+            </>
+          )}
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }
