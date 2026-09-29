@@ -21,20 +21,37 @@ interface ListingFormProps {
   category: Category;
   listing?: Listing;
   onSubmit: (data: any) => void;
+  onSubmitPublish?: (data: any) => void;
   isPending?: boolean;
 }
 
-function buildFormSchema(fields: FieldConfig[]) {
+// Empty optional numbers must not be coerced to zero (particularly coordinates).
+export function optionalNumber(value: unknown): number | null {
+  if (value === "" || value == null) return null;
+  const number = Number(value);
+  if (!Number.isFinite(number)) throw new Error("Enter a valid number");
+  return number;
+}
+
+function normalizeTags(value: unknown): string[] {
+  if (Array.isArray(value)) return value.filter((tag): tag is string => typeof tag === "string");
+  if (typeof value === "string") return value.split(",").map((tag) => tag.trim()).filter(Boolean);
+  return [];
+}
+
+function buildFormSchema(fields: FieldConfig[], isDraft = false) {
   const shape: Record<string, z.ZodTypeAny> = {};
   for (const field of fields) {
     if (field.type === "checkbox") {
       shape[field.key] = z.boolean().default(false);
     } else if (field.type === "number") {
-      shape[field.key] = z.coerce.number().optional().default(0);
+      shape[field.key] = field.key === "rewardPoints"
+        ? z.preprocess((value) => value === "" || value == null ? 0 : value, z.coerce.number().finite())
+        : z.preprocess((value) => value === "" || value == null ? null : value, z.coerce.number().finite().nullable());
     } else if (field.type === "tags") {
       shape[field.key] = z.array(z.string()).default([]);
     } else {
-      if (field.key === "name" || field.key === "description" || field.key === "interest" || field.key === "subInterest") {
+      if (!isDraft && (field.key === "name" || field.key === "description" || field.key === "interest" || field.key === "subInterest")) {
         shape[field.key] = z.string().min(1, `${field.label} is required`);
       } else {
         shape[field.key] = z.string().optional().default("");
@@ -57,9 +74,9 @@ function getDefaultValues(fields: FieldConfig[], listing?: Listing) {
     if (field.type === "checkbox") {
       defaults[field.key] = value ?? false;
     } else if (field.type === "number") {
-      defaults[field.key] = value ?? 0;
+      defaults[field.key] = value ?? (field.key === "rewardPoints" ? 0 : "");
     } else if (field.type === "tags") {
-      defaults[field.key] = value ?? [];
+      defaults[field.key] = normalizeTags(value);
     } else {
       defaults[field.key] = value ?? "";
     }
@@ -67,9 +84,9 @@ function getDefaultValues(fields: FieldConfig[], listing?: Listing) {
   return defaults;
 }
 
-export function ListingForm({ category, listing, onSubmit, isPending }: ListingFormProps) {
+export function ListingForm({ category, listing, onSubmit, onSubmitPublish, isPending }: ListingFormProps) {
   const fields = categoryFields[category];
-  const schema = buildFormSchema(fields);
+  const schema = buildFormSchema(fields, (listing as Listing & { status?: string } | undefined)?.status === "draft");
   const { toast } = useToast();
 
   const [featuredImage, setFeaturedImage] = useState<string | null>(listing?.featuredImage || null);
@@ -116,7 +133,7 @@ export function ListingForm({ category, listing, onSubmit, isPending }: ListingF
           } else if (field.type === "checkbox") {
             form.setValue(field.key, Boolean(value), { shouldDirty: true });
           } else if (field.type === "tags") {
-            form.setValue(field.key, Array.isArray(value) ? value : [], { shouldDirty: true });
+            form.setValue(field.key, normalizeTags(value), { shouldDirty: true });
           } else {
             form.setValue(field.key, String(value), { shouldDirty: true });
           }
@@ -148,24 +165,24 @@ export function ListingForm({ category, listing, onSubmit, isPending }: ListingF
     }
   };
 
-  const handleSubmit = (values: Record<string, any>) => {
+  const buildPayload = (values: Record<string, any>) => {
     const common: Record<string, any> = { category };
-    const metadata: Record<string, any> = {};
+    const metadata: Record<string, any> = { ...(listing?.metadata ?? {}) };
 
     for (const field of fields) {
       if (field.isMetadata) {
-        metadata[field.key] = values[field.key];
+        metadata[field.key] = field.type === "number" && field.key !== "rewardPoints" ? optionalNumber(values[field.key]) : values[field.key];
       } else {
-        common[field.key] = values[field.key];
+        common[field.key] = field.type === "number" && field.key !== "rewardPoints" ? optionalNumber(values[field.key]) : values[field.key];
       }
     }
 
-    onSubmit({
+    return {
       ...common,
       metadata,
       featuredImage: featuredImage || null,
       galleryImages: galleryImages.length > 0 ? galleryImages : [],
-    });
+    };
   };
 
   const commonFields = fields.filter((f) => !f.isMetadata);
@@ -173,7 +190,7 @@ export function ListingForm({ category, listing, onSubmit, isPending }: ListingF
 
   return (
     <Form {...form}>
-      <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-6">
+      <form onSubmit={form.handleSubmit((values) => onSubmit(buildPayload(values)))} className="space-y-6">
         <Card className="p-4 space-y-4">
           <div className="flex items-center justify-between gap-4 flex-wrap">
             <h3 className="text-[11px] font-bold text-muted-foreground uppercase tracking-[0.15em]">AI Content Generator</h3>
@@ -260,10 +277,13 @@ export function ListingForm({ category, listing, onSubmit, isPending }: ListingF
           </Card>
         )}
 
-        <div className="flex justify-end">
+        <div className="flex justify-end flex-wrap gap-2">
+          {onSubmitPublish && <Button type="button" disabled={isPending} onClick={form.handleSubmit((values) => onSubmitPublish(buildPayload(values)))} data-testid="button-publish-listing">
+            {isPending && <Loader2 className="h-4 w-4 animate-spin mr-2" />}Publish reviewed listing
+          </Button>}
           <Button type="submit" disabled={isPending} data-testid="button-submit-listing">
             {isPending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Save className="h-4 w-4 mr-2" />}
-            <span className="font-bold uppercase tracking-wide">{listing ? "Update Listing" : "Create Listing"}</span>
+            <span className="font-bold uppercase tracking-wide">{listing?.status === "draft" ? "Save draft" : listing ? "Save Listing" : "Create Listing"}</span>
           </Button>
         </div>
       </form>

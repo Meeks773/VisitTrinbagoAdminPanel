@@ -49,7 +49,8 @@ app.use((req, res, next) => {
     const duration = Date.now() - start;
     if (path.startsWith("/api")) {
       let logLine = `${req.method} ${path} ${res.statusCode} in ${duration}ms`;
-      if (capturedJsonResponse) {
+      // Import previews and listings contain private source notes; log status, not payloads.
+      if (capturedJsonResponse && !path.startsWith("/api/imports") && !path.startsWith("/api/listings")) {
         logLine += ` :: ${JSON.stringify(capturedJsonResponse)}`;
       }
 

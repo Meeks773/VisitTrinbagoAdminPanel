@@ -13,7 +13,7 @@ import {
 } from "@/components/ui/sidebar";
 import { CATEGORIES, CATEGORY_LABELS, type Category } from "@shared/schema";
 import { categoryIcons } from "@/lib/category-config";
-import { LayoutDashboard, Calendar, BarChart3, LogOut } from "lucide-react";
+import { LayoutDashboard, Calendar, BarChart3, LogOut, FileSpreadsheet, ClipboardCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/hooks/use-auth";
 import logoUrl from "@assets/visit-trinbago-white_1776640806181.png";
@@ -58,6 +58,23 @@ export function AppSidebar() {
                     <BarChart3 className="h-4 w-4" />
                     <span className="font-semibold text-sm">Analytics</span>
                   </Link>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
+        <SidebarGroup>
+          <SidebarGroupLabel className="text-[10px] font-bold uppercase tracking-[0.15em]">Content workflow</SidebarGroupLabel>
+          <SidebarGroupContent>
+            <SidebarMenu>
+              <SidebarMenuItem>
+                <SidebarMenuButton asChild isActive={location === "/imports"}>
+                  <Link href="/imports"><FileSpreadsheet className="h-4 w-4" /><span className="font-semibold text-sm">Bulk Import</span></Link>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+              <SidebarMenuItem>
+                <SidebarMenuButton asChild isActive={location === "/drafts"}>
+                  <Link href="/drafts"><ClipboardCheck className="h-4 w-4" /><span className="font-semibold text-sm">Draft Review</span></Link>
                 </SidebarMenuButton>
               </SidebarMenuItem>
             </SidebarMenu>

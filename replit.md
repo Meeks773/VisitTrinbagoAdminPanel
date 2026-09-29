@@ -27,6 +27,18 @@ nightlife, beaches, wellness, festivals, stay, transport, business, tours, eat_d
 - Object storage integration files in server/replit_integrations/object_storage/
 - Upload components in client/src/components/image-upload.tsx
 
+## Bulk Place Import and Draft Review
+- Admin routes `/imports` and `/drafts` support TTL multi-sheet XLSX submissions and the downloadable Places template (5 MB limit).
+- Upload → preview and select → create drafts; existing places are not overwritten. Repeated imports are idempotent, with location-aware matching so separate branches remain separate.
+- `server/imports/` contains the parser, archive guard, import transaction, and authenticated API routes.
+- `listings.status` defaults to published for existing/manual content; imported rows explicitly use draft. Public detail/list/search/nearby/category counts include only published listings.
+- Private source values, verification notes, and warnings are stored in `import_details`, not public metadata. Public responses exclude all import provenance.
+- Verified attraction rows supersede matching unverified rows. Nature maps to Attractions. Reference sheets, offers, and empty Events are not imported as places.
+- Review edits can be saved as drafts or saved and published together; incomplete required fields block publication. Blank coordinates remain null.
+- `import_batches` records previews and results. API: `GET /api/imports`, `GET /api/imports/template`, `POST /api/imports/preview` (raw XLSX and encoded `X-File-Name`), `POST /api/imports/:id/commit` with selected row keys.
+- Development imports do not alter production data. Publish schema changes normally; use Bulk Import on the live admin to load live drafts.
+- Regression checks: `npx tsx --test script/import-parser.test.ts script/draft-visibility.test.ts script/import-service.test.ts`. The service suite uses temporary development records and cleans them up.
+
 ## Admin API Endpoints
 - `GET /api/listings?category=xxx` - Admin listing retrieval
 - `GET /api/listings/:id` - Single listing

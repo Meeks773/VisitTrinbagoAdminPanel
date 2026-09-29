@@ -4,9 +4,10 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { MapPin, Star, Pencil, Trash2, ExternalLink, ImageIcon } from "lucide-react";
 import { categoryIcons } from "@/lib/category-config";
+import type { AdminListing } from "@/lib/import-listing";
 
 interface ListingCardProps {
-  listing: Listing;
+  listing: AdminListing;
   onEdit: () => void;
   onDelete: () => void;
 }
@@ -39,6 +40,7 @@ export function ListingCard({ listing, onEdit, onDelete }: ListingCardProps) {
                   <h3 className="font-bold text-sm uppercase tracking-wide truncate" data-testid={`text-listing-name-${listing.id}`}>
                     {listing.name}
                   </h3>
+                  {listing.status === "draft" && <Badge variant="outline" className="border-primary text-primary uppercase text-[10px]">Draft · hidden</Badge>}
                   <Badge variant="secondary" className="shrink-0 font-semibold text-[10px] uppercase tracking-wider">
                     {listing.subInterest}
                   </Badge>
@@ -80,10 +82,10 @@ export function ListingCard({ listing, onEdit, onDelete }: ListingCardProps) {
               </div>
             </div>
             <div className="flex items-center gap-1 shrink-0">
-              <Button size="icon" variant="ghost" onClick={onEdit} data-testid={`button-edit-${listing.id}`}>
+              <Button size="icon" variant="ghost" onClick={onEdit} aria-label={`Edit ${listing.name}`} data-testid={`button-edit-${listing.id}`}>
                 <Pencil className="h-4 w-4" />
               </Button>
-              <Button size="icon" variant="ghost" onClick={onDelete} data-testid={`button-delete-${listing.id}`}>
+              <Button size="icon" variant="ghost" onClick={onDelete} aria-label={`Delete ${listing.name}`} data-testid={`button-delete-${listing.id}`}>
                 <Trash2 className="h-4 w-4 text-destructive" />
               </Button>
             </div>

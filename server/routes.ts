@@ -1,13 +1,15 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
-import { insertListingSchema, insertEventSchema, CATEGORIES, CATEGORY_LABELS, EVENT_CATEGORIES, apiRequests } from "@shared/schema";
+import { insertListingSchema, insertEventSchema, CATEGORIES, CATEGORY_LABELS, EVENT_CATEGORIES, apiRequests, type Listing } from "@shared/schema";
 import { db } from "./db";
 import { z } from "zod";
 import { registerObjectStorageRoutes } from "./replit_integrations/object_storage";
 import { ObjectStorageService } from "./replit_integrations/object_storage/objectStorage";
 import OpenAI from "openai";
 import { requireAuth } from "./auth";
+import { publicListing, publicationErrors } from "./publication";
+import { registerImportRoutes } from "./imports/routes";
 
 const objectStorageService = new ObjectStorageService();
 
@@ -159,6 +161,8 @@ export async function registerRoutes(
     return requireAuth(req, res, next);
   });
 
+  registerImportRoutes(app);
+
   app.get("/api/listings", async (req, res) => {
     try {
       const category = req.query.category as string | undefined;
@@ -188,6 +192,11 @@ export async function registerRoutes(
   app.post("/api/listings", async (req, res) => {
     try {
       const data = insertListingSchema.parse(req.body);
+      const errors = publicationErrors({
+        ...(data as Pick<Listing, "name" | "category" | "interest" | "subInterest" | "description" | "latitude" | "longitude">),
+        status: (data as Partial<Listing>).status ?? "published",
+      });
+      if (errors.length) return res.status(400).json({ message: errors.join(", ") });
       const listing = await storage.createListing(data);
       res.status(201).json(listing);
     } catch (err: any) {
@@ -210,6 +219,8 @@ export async function registerRoutes(
       }
       const partialSchema = insertListingSchema.partial();
       const validData = partialSchema.parse(req.body);
+      const errors = publicationErrors({ ...existing, ...validData });
+      if (errors.length) return res.status(400).json({ message: errors.join(", ") });
       const listing = await storage.updateListing(id, validData);
       res.json(listing);
     } catch (err: any) {
@@ -810,11 +821,11 @@ Return your answer as a JSON array of event objects. Return ONLY the JSON array,
       if (isNaN(id)) {
         return res.status(400).json({ message: "Invalid listing ID" });
       }
-      const listing = await storage.getListing(id);
+      const listing = await storage.getPublishedListing(id);
       if (!listing) {
         return res.status(404).json({ message: "Listing not found" });
       }
-      res.json({ data: listing });
+      res.json({ data: publicListing(listing) });
     } catch (err: any) {
       res.status(500).json({ message: err.message });
     }

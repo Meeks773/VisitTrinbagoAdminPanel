@@ -35,6 +35,17 @@ export const CATEGORY_LABELS: Record<Category, string> = {
 
 export const listings = pgTable("listings", {
   id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
+  status: text("status", { enum: ["draft", "published"] }).notNull().default("published"),
+  importKey: text("import_key").unique(),
+  importDetails: jsonb("import_details").$type<{
+    batchId: number;
+    fileName: string;
+    sheet: string;
+    rowNumber: number;
+    verified: boolean;
+    warnings: string[];
+    rawColumns: Record<string, string>;
+  }>(),
   category: text("category").notNull(),
   name: text("name").notNull(),
   interest: text("interest").notNull(),
@@ -54,12 +65,23 @@ export const listings = pgTable("listings", {
 });
 
 export const insertListingSchema = createInsertSchema(listings).omit({
-  id: true,
   createdAt: true,
+  importKey: true,
+  importDetails: true,
 });
 
 export type InsertListing = z.infer<typeof insertListingSchema>;
 export type Listing = typeof listings.$inferSelect;
+
+export const importBatches = pgTable("import_batches", {
+  id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
+  fileName: text("file_name").notNull(),
+  status: text("status").notNull().default("previewed"),
+  preview: jsonb("preview").$type<any>().notNull(),
+  importedCount: integer("imported_count").notNull().default(0),
+  skippedCount: integer("skipped_count").notNull().default(0),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
 
 export const EVENT_CATEGORIES = [
   "Concert",
@@ -105,7 +127,6 @@ export const events = pgTable("events", {
 });
 
 export const insertEventSchema = createInsertSchema(events).omit({
-  id: true,
   createdAt: true,
 });
 

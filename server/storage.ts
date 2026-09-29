@@ -1,6 +1,7 @@
 import { type Listing, type InsertListing, listings, type Event, type InsertEvent, events, apiRequests } from "@shared/schema";
 import { db } from "./db";
 import { eq, and, ilike, or, sql, desc, asc, gte } from "drizzle-orm";
+import { publicListing } from "./publication";
 
 export interface PublicQueryOptions {
   category?: string;
@@ -96,10 +97,11 @@ export interface UsageAnalytics {
 export interface IStorage {
   getListings(category?: string): Promise<Listing[]>;
   getListing(id: number): Promise<Listing | undefined>;
+  getPublishedListing(id: number): Promise<Listing | undefined>;
   createListing(data: InsertListing): Promise<Listing>;
   updateListing(id: number, data: Partial<InsertListing>): Promise<Listing | undefined>;
   deleteListing(id: number): Promise<boolean>;
-  getPublicListings(options: PublicQueryOptions): Promise<PaginatedResult<Listing>>;
+  getPublicListings(options: PublicQueryOptions): Promise<PaginatedResult<ReturnType<typeof publicListing>>>;
   getCategoryCounts(): Promise<Record<string, number>>;
   getEvents(): Promise<Event[]>;
   getEvent(id: number): Promise<Event | undefined>;
@@ -125,6 +127,11 @@ export class DatabaseStorage implements IStorage {
     return listing;
   }
 
+  async getPublishedListing(id: number): Promise<Listing | undefined> {
+    const [listing] = await db.select().from(listings).where(and(eq(listings.id, id), eq(listings.status, "published")));
+    return listing;
+  }
+
   async createListing(data: InsertListing): Promise<Listing> {
     const [listing] = await db.insert(listings).values(data as any).returning();
     return listing;
@@ -140,7 +147,7 @@ export class DatabaseStorage implements IStorage {
     return result.length > 0;
   }
 
-  async getPublicListings(options: PublicQueryOptions): Promise<PaginatedResult<Listing>> {
+  async getPublicListings(options: PublicQueryOptions): Promise<PaginatedResult<ReturnType<typeof publicListing>>> {
     const {
       category,
       search,
@@ -153,7 +160,7 @@ export class DatabaseStorage implements IStorage {
       limit = 20,
     } = options;
 
-    const conditions = [];
+    const conditions = [eq(listings.status, "published")];
 
     if (category) {
       conditions.push(eq(listings.category, category));
@@ -225,7 +232,7 @@ export class DatabaseStorage implements IStorage {
     const totalPages = Math.ceil(total / limit);
 
     return {
-      data: results,
+      data: results.map(publicListing),
       pagination: {
         page,
         limit,
@@ -243,6 +250,7 @@ export class DatabaseStorage implements IStorage {
         count: sql<number>`count(*)::int`,
       })
       .from(listings)
+      .where(eq(listings.status, "published"))
       .groupBy(listings.category);
 
     const counts: Record<string, number> = {};

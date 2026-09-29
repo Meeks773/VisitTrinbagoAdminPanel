@@ -1,0 +1,1 @@
+- [Spreadsheet review policy](spreadsheet-review-policy.md) — TTL submissions are review material; keep imports unpublished and preserve uncertainty rather than inventing facts.
