@@ -99,23 +99,32 @@ Restoration compares current image fields to the stored `after` snapshot and
 restores the prior media fields only; it never deletes listings or objects.
 Repeated apply with the same review token and repeated restore are idempotent.
 
-## Additive migration
+## Development schema and publishing
 
-No schema or database mutation was run for this implementation. After reviewing
-the PR and backing up the **CMS clone's own database**, the CMS owner can apply:
+The Drizzle schema in `shared/schema.ts` is the source of truth. The additive SQL
+below is a development-only setup step for this feature, using the workspace's
+managed **development** database:
 
 ```sh
 psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f migrations/0001_photo_import.sql
 ```
 
-Do not point this clone or migration at the mobile account database. The SQL
-adds nullable `listings.photo_media` and creates `photo_import_batches`; it does
-not update existing listing rows or publish content.
+Never run this command against production or the mobile account database, and
+never add it to the publishing build or application startup. The SQL adds
+nullable `listings.photo_media` and creates `photo_import_batches`, including
+the checks/index also declared in Drizzle. It does not update existing listing
+content or publish photos.
+
+Replit publishing compares the actual development and production database
+schemas, not the SQL files in the repository. Apply and verify the development
+schema before publishing; then review and apply the schema changes in the
+Publish flow. Do not choose to overwrite production data with development data.
+Skipping development setup can cause startup to fail with
+`column "photo_media" does not exist`, even though compilation succeeds.
 
 ## Verification
 
-With the project's existing dependencies available, run from
-`.local/cms-photo-import`:
+With the project's existing dependencies available, run from the project root:
 
 ```sh
 npx tsx --test server/photo-import/service.test.ts

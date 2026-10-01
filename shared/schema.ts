@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { pgTable, text, varchar, integer, boolean, real, jsonb, timestamp } from "drizzle-orm/pg-core";
+import { pgTable, text, varchar, integer, boolean, real, jsonb, timestamp, check, index } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 import { photoMediaSchema } from "./photo-media";
@@ -87,7 +87,12 @@ export const photoImportBatches = pgTable("photo_import_batches", {
   batch: jsonb("batch").$type<PhotoImportBatch>().notNull(),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
-});
+}, (table) => [
+  check("photo_import_batches_status_check", sql`${table.status} IN ('staging', 'reviewed', 'applied', 'restored')`),
+  check("photo_import_batches_file_count_check", sql`${table.fileCount} >= 0 AND ${table.fileCount} <= 2500`),
+  check("photo_import_batches_batch_check", sql`jsonb_typeof(${table.batch}) = 'object'`),
+  index("photo_import_batches_created_at_idx").on(table.createdAt.desc()),
+]);
 
 export const importBatches = pgTable("import_batches", {
   id: integer("id").primaryKey().generatedAlwaysAsIdentity(),

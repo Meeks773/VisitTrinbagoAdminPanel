@@ -1,5 +1,6 @@
 -- Additive CMS migration for the reviewed photo-import workflow.
--- Apply manually in the CMS clone's own database only after owner review.
+-- Development database only. Replit Publish applies the resulting schema diff
+-- to managed production; never run this at application startup or deploy build.
 BEGIN;
 
 ALTER TABLE listings
