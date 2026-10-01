@@ -149,18 +149,17 @@ export async function registerRoutes(
   httpServer: Server,
   app: Express
 ): Promise<Server> {
-  registerObjectStorageRoutes(app);
-
   app.use("/api", (req, res, next) => {
     if (
-      req.path.startsWith("/auth") ||
-      req.path.startsWith("/public")
+      req.path === "/auth" || req.path.startsWith("/auth/") ||
+      req.path === "/public" || req.path.startsWith("/public/")
     ) {
       return next();
     }
     return requireAuth(req, res, next);
   });
 
+  registerObjectStorageRoutes(app);
   registerImportRoutes(app);
 
   app.get("/api/listings", async (req, res) => {

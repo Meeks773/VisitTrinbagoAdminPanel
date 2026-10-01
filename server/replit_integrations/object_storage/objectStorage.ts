@@ -1,11 +1,11 @@
 import { Storage, File } from "@google-cloud/storage";
 import { Response } from "express";
 import { randomUUID } from "crypto";
+import { DISPLAY_CONTENT_TYPES, MAX_DISPLAY_BYTES, MAX_ORIGINAL_BYTES, mediaKind, type MediaPurpose } from "./mediaPolicy";
 import {
   ObjectAclPolicy,
   ObjectPermission,
   canAccessObject,
-  getObjectAclPolicy,
   setObjectAclPolicy,
 } from "./objectAcl";
 
@@ -95,43 +95,52 @@ export class ObjectStorageService {
   }
 
   // Downloads an object to the response.
-  async downloadObject(file: File, res: Response, cacheTtlSec: number = 3600) {
+  async downloadObject(file: File, res: Response, options: { attachment?: boolean } = {}) {
     try {
       // Get file metadata
       const [metadata] = await file.getMetadata();
-      // Get the ACL policy for the object.
-      const aclPolicy = await getObjectAclPolicy(file);
-      const isPublic = aclPolicy?.visibility === "public";
+      const contentType = metadata.contentType?.split(";")[0].trim().toLowerCase() || "application/octet-stream";
+      const size = Number(metadata.size);
+      const maximum = options.attachment ? MAX_ORIGINAL_BYTES : MAX_DISPLAY_BYTES;
+      if (!Number.isSafeInteger(size) || size <= 0 || size > maximum) {
+        return res.status(413).json({ error: "Image exceeds the serving size limit" });
+      }
+      if (!options.attachment && !(DISPLAY_CONTENT_TYPES as readonly string[]).includes(contentType)) {
+        return res.status(415).json({ error: "Only raster display images can be served inline" });
+      }
       // Set appropriate headers
       res.set({
-        "Content-Type": metadata.contentType || "application/octet-stream",
+        "Content-Type": options.attachment ? "application/octet-stream" : contentType,
         "Content-Length": metadata.size,
-        "Cache-Control": `${
-          isPublic ? "public" : "private"
-        }, max-age=${cacheTtlSec}`,
+        "Cache-Control": "private, no-store",
+        "X-Content-Type-Options": "nosniff",
+        "Content-Security-Policy": "default-src 'none'; sandbox",
+        "Content-Disposition": options.attachment ? 'attachment; filename="original-image"' : "inline",
       });
 
       // Stream the file to the response
       const stream = file.createReadStream();
 
-      stream.on("error", (err) => {
-        console.error("Stream error:", err);
+      stream.on("error", () => {
+        console.error("Media stream failed");
         if (!res.headersSent) {
+          res.removeHeader("Content-Length");
           res.status(500).json({ error: "Error streaming file" });
-        }
+        } else res.destroy();
       });
 
       stream.pipe(res);
     } catch (error) {
-      console.error("Error downloading file:", error);
+      console.error("Media download failed");
       if (!res.headersSent) {
+        res.removeHeader("Content-Length");
         res.status(500).json({ error: "Error downloading file" });
       }
     }
   }
 
   // Gets the upload URL for an object entity.
-  async getObjectEntityUploadURL(): Promise<string> {
+  async getObjectEntityUploadURL(purpose: MediaPurpose = "display"): Promise<string> {
     const privateObjectDir = this.getPrivateObjectDir();
     if (!privateObjectDir) {
       throw new Error(
@@ -141,7 +150,8 @@ export class ObjectStorageService {
     }
 
     const objectId = randomUUID();
-    const fullPath = `${privateObjectDir}/uploads/${objectId}`;
+    const namespace = purpose === "original" ? "originals" : "display";
+    const fullPath = `${privateObjectDir}/${namespace}/${objectId}`;
 
     const { bucketName, objectName } = parseObjectPath(fullPath);
 
@@ -156,7 +166,7 @@ export class ObjectStorageService {
 
   // Gets the object entity file from the object path.
   async getObjectEntityFile(objectPath: string): Promise<File> {
-    if (!objectPath.startsWith("/objects/")) {
+    if (!mediaKind(objectPath)) {
       throw new ObjectNotFoundError();
     }
 

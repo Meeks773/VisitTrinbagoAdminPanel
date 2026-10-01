@@ -16,6 +16,12 @@ Development and production have separate databases. Loading a workbook into deve
 
 All `/api/imports` endpoints require an admin session. Log in through `POST /api/auth/login` with JSON `{ "email": "...", "password": "..." }`. A successful login returns `{ "user": { "email": "..." } }` and sets the HTTP-only `connect.sid` cookie. Reuse that cookie on subsequent requests. API keys and Bearer tokens are not supported.
 
+The existing custom single-admin authentication reads `ADMIN_EMAIL` and `ADMIN_PASSWORD` from the environment. The email must be valid and the password must have at least 16 non-padding characters (maximum 4096). `SESSION_SECRET` must have at least 32 non-padding characters; retain the shared existing secret if valid. There are no hardcoded credentials or fallback secret. Missing or invalid admin configuration returns `503` on login while public reads remain available; a missing or invalid session secret fails server startup.
+
+Successful login regenerates the session ID. Sessions issued before auth hardening or before credential/session-secret rotation cannot be reused: log in again after the change and replace the cookie jar. Every admin request validates the session against the current configured credentials.
+
+Browser writes, including login, logout, preview and commit, must originate from the same admin host. Cross-origin `Origin`/`Referer` or same-site/cross-site Fetch Metadata writes return `403`; read-only requests are not blocked by this check. Headerless cURL clients are supported. Login throttling is bounded and process-local: five attempts per client IP in a 15-minute window, with `429` and a `Retry-After` response header in seconds when throttled. Counters are not shared across server instances.
+
 Use HTTPS outside local development. Keep login files, cookie jars, and preview responses private: previews include staff notes and original spreadsheet values. Never commit these files to source control or put real credentials in this guide or a shared terminal transcript.
 
 ## Endpoint reference
@@ -242,13 +248,16 @@ Errors normally return `{ "message": "..." }`.
 | Status | Cause |
 |---|---|
 | 400 | Invalid login shape; malformed/unsupported workbook; invalid filename; invalid batch ID, selection or unknown row key |
-| 401 | Missing/expired admin session, or invalid login credentials |
+| 401 | Missing/expired admin session, a legacy session or one issued before credential/secret rotation, or invalid login credentials |
+| 403 | Browser write rejected by the same-origin check, including login, logout and admin API writes |
 | 404 | Commit references a preview that does not exist |
 | 413 | Upload exceeds 5 MiB |
 | 415 | Preview upload is not a raw XLSX body with the required content type |
-| 500 | Server, database or session-storage failure |
+| 429 | Process-local login rate limit reached; `Retry-After` gives the delay in seconds |
+| 500 | Server, database or session-storage failure, including logout session-destruction failure |
+| 503 | Login unavailable because admin configuration is missing or invalid |
 
-Correct file/selection errors before retrying. For `401`, log in again. If a commit response is lost, retry the **same batch and selection** after re-authenticating if necessary; a previously successful commit returns the saved result. A lost preview response requires re-uploading and produces another history entry.
+Correct file/selection errors before retrying. For `401`, log in again after any hardening or credential/secret rotation. For `403`, make browser writes from the same admin origin. For login `429`, wait for `Retry-After`; for `503`, have an operator correct the environment configuration. Logout `500` means server-side session destruction failed even though the cookie is cleared; investigate the session store rather than assuming the server session was invalidated. If a commit response is lost, retry the **same batch and selection** after re-authenticating if necessary; a previously successful commit returns the saved result. A lost preview response requires re-uploading and produces another history entry.
 
 Do not retry publication automatically or assume a draft is public because an import succeeded.
 

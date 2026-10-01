@@ -3,7 +3,7 @@
   "info": {
     "title": "VisitTrinbago Admin Place Import API",
     "version": "1.0.0",
-    "description": "Authenticated XLSX preview and draft-only place imports. Existing listings are never overwritten. Preview responses contain private source notes. See admin-import-api.md for workbook layouts, count semantics and cURL examples. Use the actual development or production host as the server URL."
+    "description": "Authenticated XLSX preview and draft-only place imports. Existing listings are never overwritten. Preview responses contain private source notes. See admin-import-api.md for workbook layouts, count semantics and cURL examples. Use the actual development or production host as the server URL. Custom single-admin authentication uses environment ADMIN_EMAIL and ADMIN_PASSWORD (at least 16 non-padding characters) with SESSION_SECRET (at least 32 non-padding characters). Retain the shared existing session secret if valid. Sessions issued before auth hardening or credential/secret rotation require a new login after the change. Browser writes must be same-origin; headerless non-browser clients and read-only requests are supported."
   },
   "servers": [{ "url": "/", "description": "Host of the intended admin environment" }],
   "security": [{ "adminSession": [] }],
@@ -17,7 +17,7 @@
         "tags": ["Authentication"],
         "operationId": "loginAdmin",
         "summary": "Start an admin session",
-        "description": "Sets the HTTP-only connect.sid cookie. Reuse it for import requests. No API-key or Bearer-token support.",
+        "description": "Regenerates the session ID and sets the HTTP-only connect.sid cookie bound to the current configured admin credentials. Reuse it for import requests; log in again after auth hardening or credential/secret rotation. No API-key or Bearer-token support. Browser writes must be same-origin. The bounded process-local login limit permits five attempts per client IP in 15 minutes; counters are not shared across server instances.",
         "security": [],
         "requestBody": {
           "required": true,
@@ -56,7 +56,22 @@
           },
           "400": { "$ref": "#/components/responses/BadRequest" },
           "401": { "description": "Invalid credentials.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } },
-          "500": { "$ref": "#/components/responses/ServerError" }
+          "403": { "$ref": "#/components/responses/BrowserWriteForbidden" },
+          "429": {
+            "description": "Bounded process-local login rate limit reached. Wait for Retry-After before retrying.",
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds to wait before retrying login.",
+                "schema": { "type": "integer", "minimum": 1 }
+              }
+            },
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" }, "example": { "message": "Too many login attempts. Try again later" } } }
+          },
+          "500": { "$ref": "#/components/responses/ServerError" },
+          "503": {
+            "description": "Login unavailable because admin environment configuration is missing or invalid. Public reads remain available; an operator must correct the configuration.",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" }, "example": { "message": "Admin login is unavailable: valid admin credentials must be configured" } } }
+          }
         }
       }
     },
@@ -65,7 +80,7 @@
         "tags": ["Authentication"],
         "operationId": "logoutAdmin",
         "summary": "End the session and clear its cookie",
-        "description": "Send the session cookie to end that session. This endpoint does not require an authenticated session.",
+        "description": "Send the session cookie to end that session. This endpoint does not require an authenticated session. Browser writes must be same-origin. Session-store destruction failure returns 500 even though the cookie is cleared.",
         "security": [],
         "responses": {
           "200": {
@@ -80,7 +95,9 @@
                 "example": { "ok": true }
               }
             }
-          }
+          },
+          "403": { "$ref": "#/components/responses/BrowserWriteForbidden" },
+          "500": { "description": "Session-store destruction failed; the cookie is cleared but server-side session invalidation is not confirmed.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" }, "example": { "message": "Session error" } } } }
         }
       }
     },
@@ -144,6 +161,7 @@
           "200": { "description": "Private persisted preview. Keys can be selected for commit.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ImportPreview" } } } },
           "400": { "$ref": "#/components/responses/BadRequest" },
           "401": { "$ref": "#/components/responses/Unauthorized" },
+          "403": { "$ref": "#/components/responses/BrowserWriteForbidden" },
           "413": { "description": "Workbook exceeds the 5 MiB upload limit.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } },
           "415": { "description": "Request body was not parsed as raw XLSX with the required media type.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } },
           "500": { "$ref": "#/components/responses/ServerError" }
@@ -167,6 +185,7 @@
           "200": { "description": "Committed batch result; does not publish any places.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ImportCommitResult" }, "example": { "batchId": 123, "importedCount": 2, "skippedCount": 3 } } } },
           "400": { "$ref": "#/components/responses/BadRequest" },
           "401": { "$ref": "#/components/responses/Unauthorized" },
+          "403": { "$ref": "#/components/responses/BrowserWriteForbidden" },
           "404": { "description": "Import preview not found.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } },
           "500": { "$ref": "#/components/responses/ServerError" }
         }
@@ -175,11 +194,12 @@
   },
   "components": {
     "securitySchemes": {
-      "adminSession": { "type": "apiKey", "in": "cookie", "name": "connect.sid", "description": "Admin session cookie set by POST /api/auth/login. Not a manually issued API key." }
+      "adminSession": { "type": "apiKey", "in": "cookie", "name": "connect.sid", "description": "Admin session cookie set by POST /api/auth/login and validated against the current configured credentials. Legacy sessions and sessions issued before credential/secret rotation cannot authenticate; log in again after the change. Not a manually issued API key." }
     },
     "responses": {
       "BadRequest": { "description": "Invalid payload, filename, workbook, batch identifier or selection. Inspect message for details.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } },
-      "Unauthorized": { "description": "Missing or expired admin session.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" }, "example": { "message": "Not authenticated" } } } },
+      "Unauthorized": { "description": "Missing, expired or legacy admin session, or session issued before credential/secret rotation. Log in again after hardening or rotation.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" }, "example": { "message": "Not authenticated" } } } },
+      "BrowserWriteForbidden": { "description": "Browser write rejected because Origin/Referer is cross-origin or Sec-Fetch-Site is same-site/cross-site. Use the same admin origin. Read-only requests and headerless non-browser clients are allowed.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" }, "example": { "message": "Cross-origin requests are not allowed" } } } },
       "ServerError": { "description": "Server, database or session failure.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } }
     },
     "schemas": {

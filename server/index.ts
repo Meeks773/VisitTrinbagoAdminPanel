@@ -49,8 +49,8 @@ app.use((req, res, next) => {
     const duration = Date.now() - start;
     if (path.startsWith("/api")) {
       let logLine = `${req.method} ${path} ${res.statusCode} in ${duration}ms`;
-      // Import previews and listings contain private source notes; log status, not payloads.
-      if (capturedJsonResponse && !path.startsWith("/api/imports") && !path.startsWith("/api/listings")) {
+      // Never log admin payloads, login identities or signed upload URLs.
+      if (capturedJsonResponse && path.startsWith("/api/public/")) {
         logLine += ` :: ${JSON.stringify(capturedJsonResponse)}`;
       }
 
@@ -69,9 +69,13 @@ app.use((req, res, next) => {
 
   app.use((err: any, _req: Request, res: Response, next: NextFunction) => {
     const status = err.status || err.statusCode || 500;
-    const message = err.message || "Internal Server Error";
+    const message = status >= 500 ? "Internal Server Error"
+      : status === 400 ? "Invalid request"
+      : err.message || "Request failed";
 
-    console.error("Internal Server Error:", err);
+    // Body-parser and database exceptions may embed submitted passwords,
+    // signed URLs or private source values. Never log the exception payload.
+    console.error("Request failed:", { method: _req.method, path: _req.path, status });
 
     if (res.headersSent) {
       return next(err);

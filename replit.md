@@ -158,12 +158,18 @@ All paginated endpoints return:
 - `client/src/components/event-card.tsx` - Event card component
 
 ## Authentication
-- Single hardcoded admin: `ttl@visittrinbago.com` / `ttl2025-2026` (defined in `server/auth.ts`)
+- Custom single-admin authentication uses `ADMIN_EMAIL` and `ADMIN_PASSWORD` environment variables; no credentials are stored in source or documentation.
+- `ADMIN_EMAIL` must be a valid email address. `ADMIN_PASSWORD` must have at least 16 non-padding characters (maximum 4096); comparisons preserve the exact password.
+- `SESSION_SECRET` must have at least 32 non-padding characters. Retain the shared existing session secret if it is valid; there is no fallback secret. A missing or invalid secret fails startup clearly.
+- Missing or invalid admin credentials disable login with HTTP 503 without disabling the public app.
 - Session-based using `express-session` + `connect-pg-simple` (PostgreSQL store, table `user_sessions` auto-created)
+- Successful login regenerates the session ID. Credential-bound HMAC versions reject legacy sessions and sessions issued before credential or session-secret rotation; log in again after hardening or rotation.
 - Cookie: httpOnly, sameSite=lax, 30 day max age, `secure` only in production
 - Endpoints: `POST /api/auth/login`, `POST /api/auth/logout`, `GET /api/auth/me`
-- `requireAuth` middleware is mounted at `/api` and gates everything **except** `/api/auth/*` and `/api/public/*`
-- `/objects/*` (image serving) stays public so the mobile app can load images
+- `requireAuth` middleware is mounted at `/api` and gates everything **except** `/api/auth/*` and `/api/public/*`; upload issuance also explicitly requires an admin session.
+- `/objects/*` access requires a valid admin session OR an exact image reference from a published listing/public event; the originals namespace is always admin-only.
+- Browser API writes must be same-origin; cross-origin Origin/Referer or same-site/cross-site Fetch Metadata writes return HTTP 403. Read-only requests and headerless cURL clients are allowed.
+- Login has a bounded, process-local rate limit of five attempts per client IP per 15 minutes; HTTP 429 includes `Retry-After` in seconds.
 - Frontend: `AuthProvider` (`client/src/hooks/use-auth.tsx`) loads `/api/auth/me` on boot, `AuthGate` in `App.tsx` redirects unauthenticated users to `/login`, sidebar footer shows current user + Sign Out button
 - Login page at `/login` (`client/src/pages/login-page.tsx`)
 
