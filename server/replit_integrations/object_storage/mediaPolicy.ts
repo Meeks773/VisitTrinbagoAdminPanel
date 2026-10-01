@@ -6,10 +6,10 @@ export const MAX_DISPLAY_BYTES = 20 * 1024 * 1024;
 export const MAX_ORIGINAL_BYTES = 100 * 1024 * 1024;
 
 export function mediaKind(path: string): "display" | "original" | "legacy" | null {
-  // Reject encodings, separators, traversal and arbitrary keys outside our media
-  // namespaces. In particular, do not normalize a private path into a public one.
-  const match = /^\/objects\/(uploads|display|originals)\/([A-Za-z0-9][A-Za-z0-9_-]*(?:\.[A-Za-z0-9]+)?)$/.exec(path);
-  if (!match || match[2].length > 200) return null;
+  // Namespaced photo-import keys contain bounded path segments. Reject encoded
+  // separators, traversal and arbitrary namespaces before reaching GCS.
+  const match = /^\/objects\/(uploads|display|originals)\/([A-Za-z0-9][A-Za-z0-9_-]*(?:\.[A-Za-z0-9]+)?(?:\/[A-Za-z0-9][A-Za-z0-9_-]*(?:\.[A-Za-z0-9]+)?){0,5})$/.exec(path);
+  if (!match || path.length > 700) return null;
   return match[1] === "originals" ? "original" : match[1] === "uploads" ? "legacy" : "display";
 }
 

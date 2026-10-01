@@ -10,6 +10,10 @@ import OpenAI from "openai";
 import { requireAuth } from "./auth";
 import { publicListing, publicationErrors } from "./publication";
 import { registerImportRoutes } from "./imports/routes";
+import { registerPhotoImportRoutes } from "./photo-import/routes";
+import { listingPhotoWriteError } from "./photo-import/listing-write-validation";
+import { expectedMediaSnapshotSchema, type ExpectedMediaSnapshot } from "./photo-import/listing-update";
+import { reconcilePhotoMedia } from "./photo-import/media-reconciliation";
 
 const objectStorageService = new ObjectStorageService();
 
@@ -161,12 +165,16 @@ export async function registerRoutes(
 
   registerObjectStorageRoutes(app);
   registerImportRoutes(app);
+  registerPhotoImportRoutes(app);
 
   app.get("/api/listings", async (req, res) => {
     try {
       const category = req.query.category as string | undefined;
       const listings = await storage.getListings(category);
-      res.json(listings);
+      res.json(listings.map((listing) => ({
+        ...listing,
+        photoMedia: reconcilePhotoMedia(listing.featuredImage, listing.galleryImages, listing.photoMedia),
+      })));
     } catch (err: any) {
       res.status(500).json({ message: err.message });
     }
@@ -182,7 +190,10 @@ export async function registerRoutes(
       if (!listing) {
         return res.status(404).json({ message: "Listing not found" });
       }
-      res.json(listing);
+      res.json({
+        ...listing,
+        photoMedia: reconcilePhotoMedia(listing.featuredImage, listing.galleryImages, listing.photoMedia),
+      });
     } catch (err: any) {
       res.status(500).json({ message: err.message });
     }
@@ -191,6 +202,8 @@ export async function registerRoutes(
   app.post("/api/listings", async (req, res) => {
     try {
       const data = insertListingSchema.parse(req.body);
+      const photoError = listingPhotoWriteError(data);
+      if (photoError) return res.status(400).json({ message: photoError });
       const errors = publicationErrors({
         ...(data as Pick<Listing, "name" | "category" | "interest" | "subInterest" | "description" | "latitude" | "longitude">),
         status: (data as Partial<Listing>).status ?? "published",
@@ -212,16 +225,29 @@ export async function registerRoutes(
       if (isNaN(id)) {
         return res.status(400).json({ message: "Invalid listing ID" });
       }
-      const existing = await storage.getListing(id);
-      if (!existing) {
-        return res.status(404).json({ message: "Listing not found" });
+      if (!req.body || typeof req.body !== "object" || Array.isArray(req.body)) {
+        return res.status(400).json({ message: "Listing update must be an object" });
+      }
+      const requestBody = { ...req.body };
+      let expectedMedia: ExpectedMediaSnapshot | undefined;
+      if (Object.prototype.hasOwnProperty.call(requestBody, "expectedMedia")) {
+        const parsedExpected = expectedMediaSnapshotSchema.safeParse(requestBody.expectedMedia);
+        if (!parsedExpected.success) return res.status(400).json({ message: "expectedMedia must contain a valid current image snapshot" });
+        expectedMedia = parsedExpected.data;
+        delete requestBody.expectedMedia;
       }
       const partialSchema = insertListingSchema.partial();
-      const validData = partialSchema.parse(req.body);
-      const errors = publicationErrors({ ...existing, ...validData });
-      if (errors.length) return res.status(400).json({ message: errors.join(", ") });
-      const listing = await storage.updateListing(id, validData);
-      res.json(listing);
+      const validData = partialSchema.parse(requestBody);
+      const result = await storage.updateListingWithPhotoCAS(id, validData, expectedMedia, (existing, update) => {
+        const errors = publicationErrors({ ...existing, ...update });
+        return errors.length ? errors.join(", ") : null;
+      });
+      if (!result) return res.status(404).json({ message: "Listing not found" });
+      if ("status" in result) return res.status(result.status).json({ message: result.message });
+      res.json({
+        ...result.listing,
+        photoMedia: reconcilePhotoMedia(result.listing.featuredImage, result.listing.galleryImages, result.listing.photoMedia),
+      });
     } catch (err: any) {
       if (err instanceof z.ZodError) {
         return res.status(400).json({ message: err.errors.map(e => e.message).join(", ") });

@@ -2,6 +2,8 @@ import { sql } from "drizzle-orm";
 import { pgTable, text, varchar, integer, boolean, real, jsonb, timestamp } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
+import { photoMediaSchema } from "./photo-media";
+import type { PhotoImportBatch } from "./photo-import-types";
 
 export const CATEGORIES = [
   "nightlife",
@@ -53,6 +55,7 @@ export const listings = pgTable("listings", {
   description: text("description").notNull(),
   featuredImage: text("featured_image"),
   galleryImages: text("gallery_images").array(),
+  photoMedia: jsonb("photo_media").$type<import("./photo-media").PhotoMedia | null>().default(null),
   location: text("location"),
   latitude: real("latitude"),
   longitude: real("longitude"),
@@ -68,10 +71,23 @@ export const insertListingSchema = createInsertSchema(listings).omit({
   createdAt: true,
   importKey: true,
   importDetails: true,
+}).extend({
+  photoMedia: photoMediaSchema.nullable().optional(),
 });
 
 export type InsertListing = z.infer<typeof insertListingSchema>;
 export type Listing = typeof listings.$inferSelect;
+
+/** Additive durable workflow state; image bytes remain exclusively in GCS. */
+export const photoImportBatches = pgTable("photo_import_batches", {
+  id: varchar("id", { length: 36 }).primaryKey(),
+  name: text("name").notNull(),
+  status: text("status", { enum: ["staging", "reviewed", "applied", "restored"] }).notNull().default("staging"),
+  fileCount: integer("file_count").notNull().default(0),
+  batch: jsonb("batch").$type<PhotoImportBatch>().notNull(),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
 
 export const importBatches = pgTable("import_batches", {
   id: integer("id").primaryKey().generatedAlwaysAsIdentity(),

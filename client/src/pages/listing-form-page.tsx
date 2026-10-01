@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { ArrowLeft } from "lucide-react";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { AdminListing } from "@/lib/import-listing";
 import { missingPublicationFields } from "@/lib/import-listing";
 import { Card } from "@/components/ui/card";
@@ -42,6 +42,14 @@ export default function ListingFormPage() {
     enabled: isEdit && isValidCategory,
   });
 
+  // Snapshot of media exactly as first fetched, for backend compare-and-swap (never derived from edited values).
+  const expectedMediaRef = useRef<{ id: number; media: Record<string, unknown> } | null>(null);
+  if (listing && editId !== null && expectedMediaRef.current?.id !== editId) {
+    const l = listing as unknown as Record<string, any>;
+    expectedMediaRef.current = { id: editId, media: { featuredImage: l.featuredImage ?? null, galleryImages: l.galleryImages ?? null, photoMedia: l.photoMedia ?? null } };
+  }
+  const expectedMedia = () => expectedMediaRef.current?.id === editId ? expectedMediaRef.current?.media : undefined;
+
   const invalidateAndGoBack = () => {
     queryClient.invalidateQueries({
       predicate: (query) => {
@@ -69,7 +77,7 @@ export default function ListingFormPage() {
 
   const updateMutation = useMutation({
     mutationFn: async (data: any) => {
-      const res = await apiRequest("PATCH", `/api/listings/${editId}`, listing?.status === "draft" ? { ...data, status: "draft" } : data);
+      const res = await apiRequest("PATCH", `/api/listings/${editId}`, { ...(listing?.status === "draft" ? { ...data, status: "draft" } : data), expectedMedia: expectedMedia() });
       return res.json();
     },
     onSuccess: () => {
@@ -96,7 +104,7 @@ export default function ListingFormPage() {
 
   const publishMutation = useMutation({
     mutationFn: async (data: any) => {
-      const res = await apiRequest("PATCH", `/api/listings/${editId}`, { ...data, status: "published" });
+      const res = await apiRequest("PATCH", `/api/listings/${editId}`, { ...data, status: "published", expectedMedia: expectedMedia() });
       return res.json();
     },
     onSuccess: () => {

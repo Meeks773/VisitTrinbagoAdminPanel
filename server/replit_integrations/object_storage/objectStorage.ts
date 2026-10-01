@@ -191,6 +191,81 @@ export class ObjectStorageService {
     return objectFile;
   }
 
+  /** Signed PUTs only target private originals staging keys, never final paths. */
+  async createPhotoImportStagingUpload(
+    batchId: string,
+    fileId: string,
+    slot: "original" | "card" | "detail",
+  ): Promise<{ uploadURL: string; objectPath: string }> {
+    const uuid = /^[0-9a-f-]{36}$/i;
+    if (!uuid.test(batchId) || !uuid.test(fileId)) throw new Error("Invalid photo import identifiers");
+    const objectPath = `/objects/originals/photo-import-staging/${batchId}/${fileId}/${slot}-${randomUUID()}`;
+    const fullPath = `${this.getPrivateObjectDir()}${objectPath.slice("/objects".length)}`;
+    const { bucketName, objectName } = parseObjectPath(fullPath);
+    const uploadURL = await signObjectURL({ bucketName, objectName, method: "PUT", ttlSec: 900 });
+    return { uploadURL, objectPath };
+  }
+
+  /** Read at most the caller's bound; object metadata is only an early rejection. */
+  async readPrivateObject(objectPath: string, maxBytes: number): Promise<Buffer> {
+    if (!mediaKind(objectPath) || !Number.isSafeInteger(maxBytes) || maxBytes < 1) {
+      throw new ObjectNotFoundError();
+    }
+    const file = await this.getObjectEntityFile(objectPath);
+    const [metadata] = await file.getMetadata();
+    const size = Number(metadata.size);
+    if (!Number.isSafeInteger(size) || size < 1 || size > maxBytes) {
+      throw new Error("Staged image exceeds its byte limit");
+    }
+    const chunks: Buffer[] = [];
+    let total = 0;
+    for await (const value of file.createReadStream()) {
+      const chunk = Buffer.isBuffer(value) ? value : Buffer.from(value);
+      total += chunk.length;
+      if (total > maxBytes) throw new Error("Staged image exceeds its byte limit");
+      chunks.push(chunk);
+    }
+    const bytes = Buffer.concat(chunks, total);
+    if (bytes.length !== size) throw new Error("Staged image byte size changed while reading");
+    return bytes;
+  }
+
+  /** Immutable final objects are server-written with create-only generation preconditions. */
+  async putImmutablePhotoObject(objectPath: string, bytes: Buffer, contentType: string): Promise<void> {
+    const kind = mediaKind(objectPath);
+    if (
+      !kind ||
+      !/^\/objects\/(?:display|originals)\/photo-imports\//.test(objectPath) ||
+      bytes.length < 1 ||
+      bytes.length > MAX_ORIGINAL_BYTES
+    ) {
+      throw new Error("Invalid immutable photo destination");
+    }
+    const privateDir = this.getPrivateObjectDir().replace(/\/+$/, "");
+    const relativePath = objectPath.slice("/objects/".length);
+    const { bucketName, objectName } = parseObjectPath(`${privateDir}/${relativePath}`);
+    const file = objectStorageClient.bucket(bucketName).file(objectName);
+    try {
+      await file.save(bytes, {
+        resumable: false,
+        preconditionOpts: { ifGenerationMatch: 0 },
+        metadata: {
+          contentType,
+          cacheControl: "private, no-store",
+          metadata: { photoImportImmutable: "true" },
+        },
+      });
+    } catch (error) {
+      const status = (error as { code?: unknown; response?: { status?: unknown } })?.code ??
+        (error as { response?: { status?: unknown } })?.response?.status;
+      // A previous attempt may have successfully created this deterministic
+      // immutable key before failing on a sibling object. The caller reads and
+      // hashes the existing bytes immediately after this method returns.
+      if (status === 412 || status === "412") return;
+      throw error;
+    }
+  }
+
   normalizeObjectEntityPath(
     rawPath: string,
   ): string {

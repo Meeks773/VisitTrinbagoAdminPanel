@@ -1,4 +1,5 @@
 import { CATEGORIES, type Listing } from "@shared/schema";
+import { reconcilePhotoMedia } from "./photo-import/media-reconciliation";
 
 type PublicationFields = Pick<Listing, "status" | "name" | "category" | "interest" | "subInterest" | "description" | "latitude" | "longitude">;
 
@@ -27,5 +28,8 @@ export function publicationErrors(listing: PublicationFields): string[] {
 /** Explicit allowlist through exclusion of the private import provenance and workflow state. */
 export function publicListing(listing: Listing): Omit<Listing, "importKey" | "importDetails" | "status"> {
   const { importKey, importDetails, status, ...visible } = listing;
-  return visible;
+  return {
+    ...visible,
+    photoMedia: reconcilePhotoMedia(listing.featuredImage, listing.galleryImages, listing.photoMedia),
+  };
 }
