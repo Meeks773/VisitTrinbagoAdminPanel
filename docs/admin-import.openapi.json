@@ -1,0 +1,299 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "VisitTrinbago Admin Place Import API",
+    "version": "1.0.0",
+    "description": "Authenticated XLSX preview and draft-only place imports. Existing listings are never overwritten. Preview responses contain private source notes. See admin-import-api.md for workbook layouts, count semantics and cURL examples. Use the actual development or production host as the server URL."
+  },
+  "servers": [{ "url": "/", "description": "Host of the intended admin environment" }],
+  "security": [{ "adminSession": [] }],
+  "tags": [
+    { "name": "Authentication" },
+    { "name": "Imports" }
+  ],
+  "paths": {
+    "/api/auth/login": {
+      "post": {
+        "tags": ["Authentication"],
+        "operationId": "loginAdmin",
+        "summary": "Start an admin session",
+        "description": "Sets the HTTP-only connect.sid cookie. Reuse it for import requests. No API-key or Bearer-token support.",
+        "security": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["email", "password"],
+                "properties": {
+                  "email": { "type": "string", "description": "Admin sign-in email; surrounding whitespace and case are normalized." },
+                  "password": { "type": "string", "format": "password", "writeOnly": true }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Authenticated; session cookie is set.",
+            "headers": { "Set-Cookie": { "description": "Session cookie. Value is sensitive; retain in a protected cookie jar.", "schema": { "type": "string" } } },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["user"],
+                  "properties": {
+                    "user": {
+                      "type": "object",
+                      "required": ["email"],
+                      "properties": { "email": { "type": "string" } }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "401": { "description": "Invalid credentials.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } },
+          "500": { "$ref": "#/components/responses/ServerError" }
+        }
+      }
+    },
+    "/api/auth/logout": {
+      "post": {
+        "tags": ["Authentication"],
+        "operationId": "logoutAdmin",
+        "summary": "End the session and clear its cookie",
+        "description": "Send the session cookie to end that session. This endpoint does not require an authenticated session.",
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Logout completed; connect.sid is cleared.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["ok"],
+                  "properties": { "ok": { "type": "boolean", "enum": [true] } }
+                },
+                "example": { "ok": true }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/imports": {
+      "get": {
+        "tags": ["Imports"],
+        "operationId": "listImportBatches",
+        "summary": "List recent import batches",
+        "description": "Returns at most 50 summaries, newest first. No pagination wrapper or preview-row retrieval.",
+        "responses": {
+          "200": {
+            "description": "Recent batches.",
+            "content": { "application/json": { "schema": { "type": "array", "maxItems": 50, "items": { "$ref": "#/components/schemas/ImportBatchSummary" } } } }
+          },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "500": { "$ref": "#/components/responses/ServerError" }
+        }
+      }
+    },
+    "/api/imports/template": {
+      "get": {
+        "tags": ["Imports"],
+        "operationId": "downloadPlaceImportTemplate",
+        "summary": "Download a blank Places XLSX template",
+        "responses": {
+          "200": {
+            "description": "Workbook containing a Places worksheet and supported headers.",
+            "headers": { "Content-Disposition": { "schema": { "type": "string" }, "example": "attachment; filename=\"visittrinbago-places-template.xlsx\"" } },
+            "content": { "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": { "schema": { "type": "string", "format": "binary" } } }
+          },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "500": { "$ref": "#/components/responses/ServerError" }
+        }
+      }
+    },
+    "/api/imports/preview": {
+      "post": {
+        "tags": ["Imports"],
+        "operationId": "previewPlaceImport",
+        "summary": "Upload and persist a private import preview",
+        "description": "Raw XLSX bytes only; not multipart, JSON or base64. Maximum 5,242,880 bytes, 40 MiB expanded archive and 2,500 candidate rows, with additional archive/worksheet safety checks. Supports the Places template and TTL multi-sheet layout. Does not create listings. Empty or unsupported sheets may yield an empty preview.",
+        "parameters": [
+          {
+            "name": "X-File-Name",
+            "in": "header",
+            "required": false,
+            "description": "URL-encoded filename ending in .xlsx. Server retains the basename, truncated to 200 characters.",
+            "schema": { "type": "string", "default": "places.xlsx" },
+            "example": "places%20for%20review.xlsx"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": {
+              "schema": { "type": "string", "format": "binary" }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Private persisted preview. Keys can be selected for commit.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ImportPreview" } } } },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "413": { "description": "Workbook exceeds the 5 MiB upload limit.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } },
+          "415": { "description": "Request body was not parsed as raw XLSX with the required media type.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } },
+          "500": { "$ref": "#/components/responses/ServerError" }
+        }
+      }
+    },
+    "/api/imports/{batchId}/commit": {
+      "post": {
+        "tags": ["Imports"],
+        "operationId": "commitPlaceImport",
+        "summary": "Create hidden drafts from selected preview rows",
+        "description": "Transactionally rechecks duplicates and never overwrites existing places. Finalizes the entire batch, including when zero drafts are created. Unselected rows count as skipped. Repeating a finalized batch returns original counts and alreadyImported=true; upload again to select previously omitted rows.",
+        "parameters": [
+          { "name": "batchId", "in": "path", "required": true, "schema": { "type": "integer", "minimum": 1, "maximum": 9007199254740991 } }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ImportSelection" } } }
+        },
+        "responses": {
+          "200": { "description": "Committed batch result; does not publish any places.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ImportCommitResult" }, "example": { "batchId": 123, "importedCount": 2, "skippedCount": 3 } } } },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "404": { "description": "Import preview not found.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } },
+          "500": { "$ref": "#/components/responses/ServerError" }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "adminSession": { "type": "apiKey", "in": "cookie", "name": "connect.sid", "description": "Admin session cookie set by POST /api/auth/login. Not a manually issued API key." }
+    },
+    "responses": {
+      "BadRequest": { "description": "Invalid payload, filename, workbook, batch identifier or selection. Inspect message for details.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } },
+      "Unauthorized": { "description": "Missing or expired admin session.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" }, "example": { "message": "Not authenticated" } } } },
+      "ServerError": { "description": "Server, database or session failure.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } }
+    },
+    "schemas": {
+      "Error": {
+        "type": "object",
+        "required": ["message"],
+        "properties": { "message": { "type": "string" } }
+      },
+      "Category": {
+        "type": "string",
+        "enum": ["nightlife", "beaches", "wellness", "festivals", "stay", "transport", "business", "tours", "eat_drink", "attractions", "shopping"]
+      },
+      "ImportSelection": {
+        "type": "object",
+        "required": ["keys"],
+        "properties": {
+          "keys": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 2500,
+            "description": "Opaque keys from this batch's preview. Duplicate keys are accepted and processed once.",
+            "items": { "type": "string", "minLength": 1, "maxLength": 300 }
+          }
+        }
+      },
+      "ImportCommitResult": {
+        "type": "object",
+        "required": ["batchId", "importedCount", "skippedCount"],
+        "properties": {
+          "batchId": { "type": "integer", "minimum": 1 },
+          "importedCount": { "type": "integer", "minimum": 0 },
+          "skippedCount": { "type": "integer", "minimum": 0, "description": "Parser-excluded rows + unselected candidates + commit-time duplicates/conflicts." },
+          "alreadyImported": { "type": "boolean", "description": "Present and true when the batch was finalized previously; original counts are returned." }
+        }
+      },
+      "ImportBatchSummary": {
+        "type": "object",
+        "required": ["id", "fileName", "status", "createdAt", "importedCount", "skippedCount"],
+        "properties": {
+          "id": { "type": "integer", "minimum": 1 },
+          "fileName": { "type": "string" },
+          "status": { "type": "string", "enum": ["previewed", "imported"] },
+          "createdAt": { "type": "string", "format": "date-time" },
+          "importedCount": { "type": "integer", "minimum": 0 },
+          "skippedCount": { "type": "integer", "minimum": 0 }
+        }
+      },
+      "ImportPreview": {
+        "type": "object",
+        "required": ["batchId", "fileName", "rows", "sheets", "skipped", "notices"],
+        "properties": {
+          "batchId": { "type": "integer", "minimum": 1 },
+          "fileName": { "type": "string" },
+          "rows": { "type": "array", "maxItems": 2500, "items": { "$ref": "#/components/schemas/PreviewRow" } },
+          "sheets": { "type": "array", "items": { "$ref": "#/components/schemas/SheetSummary" } },
+          "skipped": { "type": "array", "items": { "$ref": "#/components/schemas/SkippedRow" } },
+          "notices": { "type": "array", "items": { "type": "string" } }
+        }
+      },
+      "PreviewRow": {
+        "type": "object",
+        "required": ["key", "sheet", "rowNumber", "verified", "warnings", "rawColumns", "data"],
+        "properties": {
+          "key": { "type": "string", "description": "Opaque stable import identity. Submit unchanged." },
+          "sheet": { "type": "string" },
+          "rowNumber": { "type": "integer", "minimum": 1 },
+          "verified": { "type": "boolean", "description": "Source is the verified worksheet, not approval to publish." },
+          "warnings": { "type": "array", "items": { "type": "string" } },
+          "rawColumns": { "type": "object", "additionalProperties": { "type": "string" }, "description": "PRIVATE original source values, including possible staff notes. Never send publicly." },
+          "existingId": { "type": "integer", "minimum": 1, "description": "Present when matched to an existing place; selected matching rows are skipped at commit." },
+          "data": { "$ref": "#/components/schemas/PlaceImportData" }
+        }
+      },
+      "PlaceImportData": {
+        "type": "object",
+        "required": ["category", "name", "interest", "subInterest", "description", "location", "latitude", "longitude", "website", "phone", "email", "featuredImage", "galleryImages", "rewardPoints", "metadata"],
+        "properties": {
+          "category": { "$ref": "#/components/schemas/Category" },
+          "name": { "type": "string" },
+          "interest": { "type": "string", "description": "May be blank; review before publishing." },
+          "subInterest": { "type": "string", "description": "May be blank; review before publishing." },
+          "description": { "type": "string", "description": "May be blank; review before publishing." },
+          "location": { "type": "string", "nullable": true },
+          "latitude": { "type": "number", "nullable": true, "minimum": -90, "maximum": 90 },
+          "longitude": { "type": "number", "nullable": true, "minimum": -180, "maximum": 180 },
+          "website": { "type": "string", "nullable": true },
+          "phone": { "type": "string", "nullable": true },
+          "email": { "type": "string", "nullable": true },
+          "featuredImage": { "type": "string", "nullable": true },
+          "galleryImages": { "type": "array", "items": { "type": "string" } },
+          "rewardPoints": { "type": "integer", "description": "Currently initialized to zero for imported rows." },
+          "metadata": { "type": "object", "additionalProperties": true, "description": "Mapped category-specific fields. Does not include raw spreadsheet provenance." }
+        }
+      },
+      "SheetSummary": {
+        "type": "object",
+        "required": ["name", "category", "rows"],
+        "properties": {
+          "name": { "type": "string" },
+          "category": { "type": "string", "nullable": true, "enum": ["nightlife", "beaches", "wellness", "festivals", "stay", "transport", "business", "tours", "eat_drink", "attractions", "shopping", null], "description": "Null for the category-per-row Places template or excluded sheets." },
+          "rows": { "type": "integer", "minimum": 0, "description": "Rows processed in this sheet before final cross-sheet deduplication; not an imported count." },
+          "reason": { "type": "string", "description": "Present when the sheet is excluded or unsupported." }
+        }
+      },
+      "SkippedRow": {
+        "type": "object",
+        "required": ["sheet", "rowNumber", "name", "reason"],
+        "properties": {
+          "sheet": { "type": "string" },
+          "rowNumber": { "type": "integer", "minimum": 1 },
+          "name": { "type": "string" },
+          "reason": { "type": "string" }
+        }
+      }
+    }
+  }
+}

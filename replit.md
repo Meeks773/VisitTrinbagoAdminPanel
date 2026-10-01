@@ -28,6 +28,7 @@ nightlife, beaches, wellness, festivals, stay, transport, business, tours, eat_d
 - Upload components in client/src/components/image-upload.tsx
 
 ## Bulk Place Import and Draft Review
+- API guide and cURL examples: `docs/admin-import-api.md`; OpenAPI 3.0.3 specification: `docs/admin-import.openapi.json`.
 - Admin routes `/imports` and `/drafts` support TTL multi-sheet XLSX submissions and the downloadable Places template (5 MB limit).
 - Upload → preview and select → create drafts; existing places are not overwritten. Repeated imports are idempotent, with location-aware matching so separate branches remain separate.
 - `server/imports/` contains the parser, archive guard, import transaction, and authenticated API routes.
