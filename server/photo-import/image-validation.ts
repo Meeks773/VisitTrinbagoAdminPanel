@@ -63,10 +63,11 @@ function inspectJpeg(bytes: Buffer): ImageInspection {
     const payloadStart = offset + 2;
     const payloadLength = length - 2;
 
-    if (marker >= 0xe1 && marker <= 0xef || marker === 0xfe) {
-      // APP0 JFIF is structural; every other application/comment segment may
-      // contain EXIF, XMP, ICC, thumbnails or other private metadata.
-      if (marker !== 0xe0 || payloadLength < 5 || bytes.toString("ascii", payloadStart, payloadStart + 5) !== "JFIF\0") {
+    if (marker >= 0xe0 && marker <= 0xef || marker === 0xfe) {
+      // Only a minimal JFIF header is structural. APP0 can also carry
+      // JFXX/arbitrary data or embedded thumbnails, so it is not a blanket exception.
+      if (marker !== 0xe0 || payloadLength !== 14 || bytes.toString("ascii", payloadStart, payloadStart + 5) !== "JFIF\0"
+        || bytes[payloadStart + 12] !== 0 || bytes[payloadStart + 13] !== 0) {
         metadataFree = false;
       }
     }

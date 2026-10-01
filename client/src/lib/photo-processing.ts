@@ -1,4 +1,5 @@
 import type { PhotoImportFileInput, VariantDeclaration } from "@shared/photo-import-types";
+import { sanitizeCanvasBlob } from "./photo-display-sanitizer";
 
 export const MAX_BYTES = 50 * 1024 * 1024;
 export const MAX_PIXELS = 40_000_000;
@@ -115,7 +116,7 @@ async function render(bitmap: ImageBitmap, edge: number, quality: number): Promi
   const canvas = document.createElement("canvas");
   canvas.width = width; canvas.height = height;
   try {
-    const ctx = canvas.getContext("2d");
+    const ctx = canvas.getContext("2d", { colorSpace: "srgb" });
     if (!ctx) throw new Error("Canvas is unavailable in this browser");
     ctx.imageSmoothingQuality = "high";
     ctx.drawImage(bitmap, 0, 0, width, height);
@@ -126,6 +127,9 @@ async function render(bitmap: ImageBitmap, edge: number, quality: number): Promi
       format = "jpeg";
     }
     if (!blob) throw new Error("Could not encode image");
+    // Browsers can attach fresh ICC/EXIF headers even to a new canvas image.
+    // Sanitize BEFORE hashing/declaration/upload; leave the source untouched.
+    blob = await sanitizeCanvasBlob(blob, format);
     const sha256 = await sha256Hex(blob);
     return { blob, contentType: blob.type, decl: { sha256, bytes: blob.size, width, height, format } };
   } finally {

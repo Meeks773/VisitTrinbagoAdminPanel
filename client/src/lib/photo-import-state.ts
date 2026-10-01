@@ -95,3 +95,14 @@ export class ReportGate {
 export function canReviewOrApply(gate: ReportGate, id: string | null | undefined): boolean {
   return !!id && !gate.isBlocked(id);
 }
+
+/** A late refresh can restore local copies of old errors; server resolution wins
+ * only for an exact record. Never remove queued reports or bypass their gate. */
+export function unresolvedIssueCopies<T extends { filename: string; bytes: number; code: string; error: string }>(
+  local: T[],
+  saved: Array<LocalIssueRecord & { resolved?: boolean }>,
+): T[] {
+  return local.filter((issue) => !saved.some((record) => record.resolved === true
+    && record.filename === issue.filename && record.bytes === issue.bytes
+    && record.code === issue.code && record.message === issue.error));
+}
