@@ -2,6 +2,7 @@ import { type Listing, type InsertListing, listings, type Event, type InsertEven
 import { db } from "./db";
 import { eq, and, ilike, or, sql, desc, asc, gte } from "drizzle-orm";
 import { publicListing } from "./publication";
+import { prepareGuardedListingPatch, type ExpectedMediaSnapshot } from "./photo-import/listing-update";
 
 export interface PublicQueryOptions {
   category?: string;
@@ -94,12 +95,23 @@ export interface UsageAnalytics {
   hasData: boolean;
 }
 
+export type ListingPatchResult =
+  | { listing: Listing }
+  | { status: number; message: string }
+  | null;
+
 export interface IStorage {
   getListings(category?: string): Promise<Listing[]>;
   getListing(id: number): Promise<Listing | undefined>;
   getPublishedListing(id: number): Promise<Listing | undefined>;
   createListing(data: InsertListing): Promise<Listing>;
   updateListing(id: number, data: Partial<InsertListing>): Promise<Listing | undefined>;
+  updateListingWithPhotoCAS(
+    id: number,
+    data: Partial<InsertListing>,
+    expectedMedia: ExpectedMediaSnapshot | undefined,
+    validate: (current: Listing, update: Partial<InsertListing>) => string | null,
+  ): Promise<ListingPatchResult>;
   deleteListing(id: number): Promise<boolean>;
   getPublicListings(options: PublicQueryOptions): Promise<PaginatedResult<ReturnType<typeof publicListing>>>;
   getCategoryCounts(): Promise<Record<string, number>>;
@@ -140,6 +152,30 @@ export class DatabaseStorage implements IStorage {
   async updateListing(id: number, data: Partial<InsertListing>): Promise<Listing | undefined> {
     const [listing] = await db.update(listings).set(data).where(eq(listings.id, id)).returning();
     return listing;
+  }
+
+  /** Lock, validate/CAS and update an editor patch against one current row image. */
+  async updateListingWithPhotoCAS(
+    id: number,
+    data: Partial<InsertListing>,
+    expectedMedia: ExpectedMediaSnapshot | undefined,
+    validate: (current: Listing, update: Partial<InsertListing>) => string | null,
+  ): Promise<ListingPatchResult> {
+    return db.transaction(async (transaction) => {
+      const [current] = await transaction.select().from(listings)
+        .where(eq(listings.id, id)).for("update").limit(1);
+      if (!current) return null;
+
+      const guarded = prepareGuardedListingPatch(data, current, expectedMedia);
+      if (!guarded.ok) return { status: guarded.status, message: guarded.message };
+      const error = validate(current, guarded.data);
+      if (error) return { status: 400, message: error };
+      if (!Object.keys(guarded.data).length) return { listing: current };
+
+      const [listing] = await transaction.update(listings).set(guarded.data as any)
+        .where(eq(listings.id, id)).returning();
+      return listing ? { listing } : null;
+    });
   }
 
   async deleteListing(id: number): Promise<boolean> {

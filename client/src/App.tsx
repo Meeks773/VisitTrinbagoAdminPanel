@@ -18,6 +18,7 @@ import AnalyticsPage from "@/pages/analytics-page";
 import LoginPage from "@/pages/login-page";
 import NotFound from "@/pages/not-found";
 import BulkImportPage from "@/pages/bulk-import-page";
+import PhotoImportPage from "@/pages/photo-import-page";
 import DraftsPage from "@/pages/drafts-page";
 
 function Router() {
@@ -32,6 +33,7 @@ function Router() {
       <Route path="/events/edit/:id" component={EventFormPage} />
       <Route path="/analytics" component={AnalyticsPage} />
       <Route path="/imports" component={BulkImportPage} />
+      <Route path="/photo-imports" component={PhotoImportPage} />
       <Route path="/drafts" component={DraftsPage} />
       <Route component={NotFound} />
     </Switch>
