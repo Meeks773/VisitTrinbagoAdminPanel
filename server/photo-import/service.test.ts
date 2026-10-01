@@ -459,6 +459,43 @@ test("batch lock serialization makes concurrent duplicate apply idempotent", asy
   assert.equal(repository.batches.get(batch.id)!.status, "applied");
 });
 
+test("metadata rejection can recover in the same batch, preserving issue audit without falsely excluding ready photos", async () => {
+  const { service, objects } = fixture();
+  const batch = await service.createBatch("metadata retry");
+  const filename = "Maracas Bay.png";
+  const failedDetail = webp(800, 600, { exif: true });
+  await assert.rejects(addReadyFile(service, objects, batch.id, { filename, detail: failedDetail }), /metadata/);
+  assert.equal(objects.finalWrites.length, 0, "metadata rejection writes no immutable finals");
+  const issue = { filename, bytes: sourcePng.length, code: "failed", message: "Display image contains metadata" };
+  await service.mergeLocalIssues(batch.id, [issue]);
+  const failed = (await service.getBatchResponse(batch.id)).batch.files[0];
+  assert.equal(failed.status, "failed");
+  const ready = await addReadyFile(service, objects, batch.id, { filename });
+  assert.equal(ready.id, failed.id, "retry reuses the registered file");
+  assert.equal(ready.status, "ready");
+  const recovered = (await service.getBatchResponse(batch.id)).batch;
+  assert.deepEqual(recovered.localIssues, [{ ...issue, resolved: true }]);
+  const reviewInput = { assignments: [{ fileId: ready.id, listingId: 1 }], covers: [{ fileId: ready.id, listingId: 1 }], excludedFileIds: [] };
+  assert.equal((await service.review(batch.id, reviewInput)).status, "reviewed");
+  await service.mergeLocalIssues(batch.id, [{ ...issue, message: "Different content", code: "changed" }]);
+  await assert.rejects(service.review(batch.id, reviewInput), /acknowledge/);
+});
+
+test("late metadata report is resolved only by matching ready filename and bytes; clients cannot resolve issues", async () => {
+  const { service, objects } = fixture();
+  const batch = await service.createBatch("late reports");
+  const ready = await addReadyFile(service, objects, batch.id);
+  const issue = { filename: ready.filename, bytes: ready.bytes, code: "failed", message: "Display image contains metadata" };
+  const result = await service.mergeLocalIssues(batch.id, [
+    issue,
+    { ...issue, bytes: ready.bytes + 1, resolved: true },
+    { ...issue, filename: "unknown.png", resolved: true },
+    { ...issue, message: "Source changed", code: "changed", resolved: true },
+  ]);
+  assert.equal(result.localIssues![0].resolved, true);
+  assert.ok(result.localIssues!.slice(1).every((record) => record.resolved !== true));
+});
+
 test("matching remains exact/sequence-only and duplicate listing names are explicitly ambiguous", async () => {
   const { service, repository } = fixture();
   repository.listings.set(2, { ...repository.listings.get(1)!, id: 2 });

@@ -66,6 +66,8 @@ export interface LocalPhotoImportIssue {
   bytes: number;
   code: string;
   message: string;
+  /** Server-controlled audit marker, only after the matching file is ready. */
+  resolved?: boolean;
 }
 
 export interface PhotoImportSourceTotals {

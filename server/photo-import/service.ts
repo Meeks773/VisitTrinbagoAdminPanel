@@ -32,6 +32,10 @@ import {
 import { reconcilePhotoMedia } from "./media-reconciliation";
 
 export type PhotoUploadKind = "original" | "card" | "detail";
+function metadataIssueRecovered(issue: LocalPhotoImportIssue, files: PhotoImportFile[]): boolean {
+  return issue.code === "failed" && issue.message === "Display image contains metadata"
+    && files.some((file) => file.status === "ready" && file.filename === issue.filename && file.bytes === issue.bytes);
+}
 export interface PhotoImportObjectStorage {
   createStagingUpload(batchId: string, fileId: string, kind: PhotoUploadKind): Promise<{ uploadURL: string; objectPath: string }>;
   readPrivateObject(path: string, maxBytes: number): Promise<Buffer>;
@@ -361,7 +365,7 @@ export class PhotoImportService {
         if (keys.has(key)) continue;
         if (merged.length >= MAX_LOCAL_ISSUES) throw new PhotoImportError("A batch cannot exceed 2,500 local issues", 413);
         keys.add(key);
-        merged.push(issue);
+        merged.push(metadataIssueRecovered(issue, tx.batch.files) ? { ...issue, resolved: true } : issue);
         changed = true;
       }
       if (JSON.stringify(sourceTotals) !== JSON.stringify(tx.batch.sourceTotals) && sourceTotals !== undefined) {
@@ -492,6 +496,9 @@ export class PhotoImportService {
         };
         file.status = "ready";
         file.error = null;
+        for (const issue of tx.batch.localIssues ?? []) {
+          if (metadataIssueRecovered(issue, [file])) issue.resolved = true;
+        }
         return { batch: tx.batch, error: null as string | null };
       } catch (error) {
         const message = error instanceof ImageValidationError
@@ -527,7 +534,7 @@ export class PhotoImportService {
       if (input?.acknowledgeLocalIssues !== undefined && typeof input.acknowledgeLocalIssues !== "boolean") {
         throw new PhotoImportError("acknowledgeLocalIssues must be a boolean when provided", 400);
       }
-      if ((tx.batch.localIssues?.length ?? 0) > 0 && input?.acknowledgeLocalIssues !== true) {
+      if (tx.batch.localIssues?.some((issue) => !issue.resolved) && input?.acknowledgeLocalIssues !== true) {
         throw new PhotoImportError("Explicitly acknowledge all saved local file issues before review", 400);
       }
       if (!input || !Array.isArray(input.assignments) || !Array.isArray(input.covers) || !Array.isArray(input.excludedFileIds)) {

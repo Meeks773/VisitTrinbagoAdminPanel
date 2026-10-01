@@ -13,7 +13,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { queryClient } from "@/lib/queryClient";
 import { photoImportApi, PhotoImportApiError, type PhotoImportSummary, type LocalIssueRecord, type SourceTotals } from "@/lib/photo-import-api";
 import { inspectOriginal, processPhoto, putObject, withRetry, naturalCompare, orderFileIds, issueCode, mergeIssues } from "@/lib/photo-processing";
-import { ReportGate, canReviewOrApply, enqueueIssue, loadQueue, saveTotals, planMatchesChoices, choicesFromPlan, type Choices } from "@/lib/photo-import-state";
+import { ReportGate, canReviewOrApply, enqueueIssue, loadQueue, saveTotals, planMatchesChoices, choicesFromPlan, unresolvedIssueCopies, type Choices } from "@/lib/photo-import-state";
 import { Download, FolderOpen, Loader2, RefreshCw, ShieldAlert } from "lucide-react";
 
 const LIST_KEY = ["/api/photo-imports"];
@@ -21,7 +21,7 @@ const STORE = "photo-import-current-batch"; // batch id only; no secrets
 const fmtBytes = (n: number) => (n > 1048576 ? `${(n / 1048576).toFixed(1)} MiB` : `${(n / 1024).toFixed(1)} KiB`);
 
 interface LocalIssue { filename: string; error: string; bytes: number; code: string }
-interface BatchExt { localIssues?: LocalIssueRecord[]; localIssuesAcknowledged?: boolean; sourceTotals?: SourceTotals }
+interface BatchExt { localIssues?: Array<LocalIssueRecord & { resolved?: boolean }>; localIssuesAcknowledged?: boolean; sourceTotals?: SourceTotals }
 type Confirm = "apply" | "restore" | null;
 
 export default function PhotoImportPage() {
@@ -107,7 +107,8 @@ export default function PhotoImportPage() {
   const files = useMemo(() => (batch ? [...batch.files].sort((a, b) => naturalCompare(a.filename, b.filename)) : []), [batch]);
   const ext = (batch ?? {}) as Partial<BatchExt>;
   const allIssues: LocalIssue[] = useMemo(() => mergeIssues(
-    (ext.localIssues ?? []).map((i) => ({ filename: i.filename, error: i.message, bytes: i.bytes, code: i.code })), issues),
+    (ext.localIssues ?? []).filter((i) => !i.resolved).map((i) => ({ filename: i.filename, error: i.message, bytes: i.bytes, code: i.code })),
+    unresolvedIssueCopies(issues, ext.localIssues ?? [])),
     [ext.localIssues, issues]);
   const readyCount = files.filter((f) => f.status === "ready").length;
   const names = useMemo(() => Object.fromEntries(files.map((f) => [f.id, f.filename])), [files]);
@@ -143,7 +144,7 @@ export default function PhotoImportPage() {
 
   const runUpload = async () => {
     if (!batch || !rights || locked) return;
-    cancelRef.current = false; setRunning(true); setAck(false);
+    cancelRef.current = false; setRunning(true); setAck(false); setIssues([]);
     const problems: LocalIssue[] = [];
     saveTotals(sessionStorage, batch.id, { selectedFiles: localFiles.length, selectedBytes: localFiles.reduce((n, f) => n + f.size, 0) });
     const flag = (file: File, error: string) => {
@@ -179,7 +180,7 @@ export default function PhotoImportPage() {
           await putObject(slots.original.uploadURL, file, info.contentType);
           await putObject(slots.card.uploadURL, proc.card.blob, proc.card.contentType);
           await putObject(slots.detail.uploadURL, proc.detail.blob, proc.detail.contentType);
-          current = (await withRetry(() => photoImportApi.finalize(current.id, rec.id), 3, (e) => !(e instanceof PhotoImportApiError && [401, 403, 409].includes(e.status)))).batch;
+          current = (await withRetry(() => photoImportApi.finalize(current.id, rec.id), 3, (e) => !(e instanceof PhotoImportApiError && [401, 403, 409, 422].includes(e.status)))).batch;
         } catch (e) {
           if (e instanceof PhotoImportApiError && e.status === 401) { toast({ title: "Signed out", description: "Sign in again, then reselect the folder to resume.", variant: "destructive" }); break; }
           flag(file, e instanceof Error ? e.message : "Upload failed");
@@ -239,7 +240,8 @@ export default function PhotoImportPage() {
 
   const downloadReport = (b: PhotoImportBatch) => {
     const report = { private: true, batchId: b.id, name: b.name, status: b.status, generatedAt: new Date().toISOString(), plan: b.plan, source: { selectedFiles: (b as Partial<BatchExt>).sourceTotals?.selectedFiles ?? localTotals.selected, selectedBytes: (b as Partial<BatchExt>).sourceTotals?.selectedBytes ?? localTotals.selectedBytes, registeredFiles: b.files.length, readyFiles: b.files.filter((f) => f.status === "ready").length }, localIssues: allIssues, localIssuesAcknowledged: ack || (b as Partial<BatchExt>).localIssuesAcknowledged === true, excludedByReviewer: b.files.filter((f) => excluded.has(f.id)).map((f) => f.filename), files: b.files.map((f) => ({ id: f.id, filename: f.filename, sha256: f.sha256, bytes: f.bytes, status: f.status, error: f.error, duplicateOf: f.duplicateOf })) };
-    const url = URL.createObjectURL(new Blob([JSON.stringify(report, null, 2)], { type: "application/json" }));
+    const auditReport = { ...report, resolvedIssues: (b.localIssues ?? []).filter((i) => i.resolved) };
+    const url = URL.createObjectURL(new Blob([JSON.stringify(auditReport, null, 2)], { type: "application/json" }));
     const a = document.createElement("a"); a.href = url; a.download = `photo-import-${b.id}-private-report.json`; a.click();
     setTimeout(() => URL.revokeObjectURL(url), 1000);
   };
